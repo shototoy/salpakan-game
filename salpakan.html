@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game of the Generals</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    const RANKS = [
+      { r: '5★', count: 1 }, { r: '4★', count: 1 }, { r: '3★', count: 1 }, { r: '2★', count: 1 }, { r: '1★', count: 1 },
+      { r: 'COL', count: 1 }, { r: 'LTC', count: 1 }, { r: 'MAJ', count: 1 }, { r: 'CPT', count: 1 },
+      { r: '1LT', count: 1 }, { r: '2LT', count: 1 }, { r: 'SGT', count: 2 }, { r: 'PVT', count: 6 },
+      { r: 'SPY', count: 2 }, { r: 'FLAG', count: 1 }
+    ];
+
+    const POWER = {
+      '5★': 15, '4★': 14, '3★': 13, '2★': 12, '1★': 11, 'COL': 10, 'LTC': 9, 'MAJ': 8, 'CPT': 7,
+      '1LT': 6, '2LT': 5, 'SGT': 4, 'PVT': 2, 'SPY': 1, 'FLAG': 0
+    };
+
+    const createPieces = (p) => {
+      const pieces = [];
+      let id = 0;
+      RANKS.forEach(({ r, count }) => {
+        for (let i = 0; i < count; i++) {
+          pieces.push({ r, p, id: p * 100 + id++ });
+        }
+      });
+      return pieces;
+    };
+
+    const initBoard = () => Array(8).fill(null).map(() => Array(9).fill(null));
+
+    const autoSetup = (b, p) => {
+      const nb = b.map(row => [...row]);
+      const pieces = createPieces(p).sort(() => Math.random() - 0.5);
+      const rows = p === 1 ? [0, 1, 2] : [7, 6, 5];
+      let idx = 0;
+      for (const r of rows) {
+        for (let c = 0; c < 9; c++) {
+          if (idx < 21) nb[r][c] = pieces[idx++];
+        }
+      }
+      return nb;
+    };
+
+    const battle = (a, d) => {
+      if (a.r === 'FLAG' || d.r === 'FLAG') return a.r === 'FLAG' ? 'lose' : 'win';
+      if (a.r === 'SPY') return d.r === '5★' ? 'win' : 'lose';
+      if (d.r === 'SPY') return a.r === 'PVT' ? 'win' : 'lose';
+      return POWER[a.r] > POWER[d.r] ? 'win' : POWER[a.r] < POWER[d.r] ? 'lose' : 'draw';
+    };
+
+    const validMoves = (b, r, c) => {
+      const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+      return dirs.map(([dr, dc]) => [r + dr, c + dc])
+        .filter(([nr, nc]) => nr >= 0 && nr < 8 && nc >= 0 && nc < 9 && (!b[nr][nc] || b[nr][nc].p !== b[r][c].p));
+    };
+
+    const aiMove = (b) => {
+      const pieces = [];
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (b[r][c]?.p === 2) pieces.push([r, c]);
+        }
+      }
+      const moves = [];
+      pieces.forEach(([r, c]) => {
+        validMoves(b, r, c).forEach(to => {
+          let score = Math.random() * 10;
+          const piece = b[r][c];
+          if (b[to[0]][to[1]]) {
+            const result = battle(piece, b[to[0]][to[1]]);
+            score += result === 'win' ? 50 : result === 'draw' ? 20 : -30;
+          }
+          if (to[0] === 0) score += 30;
+          if (piece.r === 'FLAG') score -= 50;
+          moves.push({ from: [r, c], to, score });
+        });
+      });
+      moves.sort((a, b) => b.score - a.score);
+      return moves.length > 0 ? { from: moves[0].from, to: moves[0].to } : null;
+    };
+
+    function Salpakan() {
+      const [board, setBoard] = useState(initBoard());
+      const [phase, setPhase] = useState('setup');
+      const [mode, setMode] = useState(null);
+      const [turn, setTurn] = useState(1);
+      const [sel, setSel] = useState(null);
+      const [moves, setMoves] = useState([]);
+      const [msg, setMsg] = useState('Choose mode');
+      const [devMode, setDevMode] = useState(false);
+      const [setupPlayer, setSetupPlayer] = useState(1);
+      const [inventory, setInventory] = useState([]);
+
+      const startSetup = (m) => {
+        setMode(m);
+        setBoard(initBoard());
+        setInventory(createPieces(1));
+        setSetupPlayer(1);
+        setPhase('setup');
+        setMsg('Player 1: Place your pieces (click squares)');
+      };
+
+      const finishSetup = () => {
+        if (inventory.length > 0) {
+          setMsg('Place all pieces first!');
+          return;
+        }
+        if (setupPlayer === 1 && mode === '2player') {
+          setSetupPlayer(2);
+          setInventory(createPieces(2));
+          setMsg('Player 2: Place your pieces');
+        } else if (setupPlayer === 1 && mode === 'ai') {
+          const nb = autoSetup(board, 2);
+          setBoard(nb);
+          setPhase('playing');
+          setTurn(1);
+          setMsg('Your turn');
+        } else {
+          setPhase('playing');
+          setTurn(1);
+          setMsg('Player 1\'s turn');
+        }
+      };
+
+      const placeOnBoard = (r, c) => {
+        if (phase !== 'setup' || inventory.length === 0) return;
+        const rows = setupPlayer === 1 ? [0, 1, 2] : [5, 6, 7];
+        if (!rows.includes(r)) return;
+        if (board[r][c]) return;
+        
+        const nb = board.map(row => [...row]);
+        nb[r][c] = inventory[0];
+        setBoard(nb);
+        setInventory(inventory.slice(1));
+      };
+
+      const removeFromBoard = (r, c) => {
+        if (phase !== 'setup') return;
+        const piece = board[r][c];
+        if (!piece || piece.p !== setupPlayer) return;
+        
+        const nb = board.map(row => [...row]);
+        nb[r][c] = null;
+        setBoard(nb);
+        setInventory([...inventory, piece]);
+      };
+
+      const handlePlayClick = (r, c) => {
+        if (mode === 'ai' && turn !== 1) return;
+        
+        if (!sel) {
+          if (board[r][c]?.p === turn) {
+            setSel([r, c]);
+            setMoves(validMoves(board, r, c));
+          }
+        } else {
+          const [sr, sc] = sel;
+          const validMove = moves.some(([mr, mc]) => mr === r && mc === c);
+          
+          if (validMove) {
+            const nb = board.map(row => [...row]);
+            const attacker = nb[sr][sc];
+            const defender = nb[r][c];
+            
+            if (defender) {
+              const res = battle(attacker, defender);
+              if (res === 'win') {
+                nb[r][c] = attacker;
+                nb[sr][sc] = null;
+                if (defender.r === 'FLAG') {
+                  setMsg(`Player ${turn} wins! 🎉`);
+                  setBoard(nb);
+                  setMoves([]);
+                  setSel(null);
+                  return;
+                }
+              } else if (res === 'lose') {
+                nb[sr][sc] = null;
+              } else {
+                nb[r][c] = null;
+                nb[sr][sc] = null;
+              }
+            } else {
+              nb[r][c] = attacker;
+              nb[sr][sc] = null;
+            }
+            
+            setBoard(nb);
+            setSel(null);
+            setMoves([]);
+            
+            if (mode === 'ai') {
+              setTurn(2);
+              setMsg('AI thinking...');
+              setTimeout(() => {
+                const aiM = aiMove(nb);
+                if (!aiM) { setMsg('You win!'); return; }
+                
+                const nb2 = nb.map(row => [...row]);
+                const [ar, ac] = aiM.from;
+                const [tr, tc] = aiM.to;
+                const aiA = nb2[ar][ac];
+                const def = nb2[tr][tc];
+                
+                if (def) {
+                  const res = battle(aiA, def);
+                  if (res === 'win') {
+                    nb2[tr][tc] = aiA;
+                    nb2[ar][ac] = null;
+                    if (def.r === 'FLAG') { setMsg('AI wins!'); setBoard(nb2); return; }
+                  } else if (res === 'lose') {
+                    nb2[ar][ac] = null;
+                  } else {
+                    nb2[tr][tc] = null;
+                    nb2[ar][ac] = null;
+                  }
+                } else {
+                  nb2[tr][tc] = aiA;
+                  nb2[ar][ac] = null;
+                }
+                
+                setBoard(nb2);
+                setTurn(1);
+                setMsg('Your turn');
+              }, 800);
+            } else {
+              setTurn(turn === 1 ? 2 : 1);
+              setMsg(`Player ${turn === 1 ? 2 : 1}'s turn`);
+            }
+          } else {
+            setSel(null);
+            setMoves([]);
+          }
+        }
+      };
+
+      const renderBoard = () => {
+        const perspective = phase === 'playing' && mode === '2player' ? turn : 1;
+        const displayBoard = perspective === 2 ? [...board].reverse().map(row => [...row].reverse()) : board;
+        
+        return displayBoard.map((row, r) => {
+          const actualR = perspective === 2 ? 7 - r : r;
+          return (
+            <div key={r} className="flex">
+              {row.map((cell, c) => {
+                const actualC = perspective === 2 ? 8 - c : c;
+                const isSelected = sel?.[0] === actualR && sel?.[1] === actualC;
+                const isValidMove = moves.some(([mr, mc]) => mr === actualR && mc === actualC);
+                const canSee = devMode || !cell || cell.p === (phase === 'playing' ? turn : setupPlayer);
+                
+                return (
+                  <div
+                    key={c}
+                    onClick={() => phase === 'setup' ? (cell ? removeFromBoard(actualR, actualC) : placeOnBoard(actualR, actualC)) : handlePlayClick(actualR, actualC)}
+                    className={`w-14 h-14 border-2 border-amber-900 flex items-center justify-center font-bold cursor-pointer transition-all text-xs ${
+                      isSelected ? 'bg-yellow-300 scale-105' : 
+                      isValidMove ? 'bg-green-400 hover:bg-green-300' :
+                      'bg-amber-700 hover:bg-amber-600'
+                    } ${cell?.p === 1 ? 'text-blue-900' : cell?.p === 2 ? 'text-red-100' : ''}`}
+                  >
+                    {cell ? (canSee ? cell.r : '?') : ''}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        });
+      };
+
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+          <h1 className="text-3xl font-bold text-amber-400 mb-2">Game of the Generals</h1>
+          
+          {phase === 'setup' && mode === null && (
+            <div className="flex gap-4 mb-4">
+              <button onClick={() => startSetup('ai')} className="px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700">
+                vs AI
+              </button>
+              <button onClick={() => startSetup('2player')} className="px-6 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700">
+                2 Players
+              </button>
+            </div>
+          )}
+          
+          <div className="text-lg text-white mb-4 font-semibold">{msg}</div>
+          
+          <div className="inline-block bg-amber-950 p-3 rounded-lg shadow-2xl border-4 border-amber-800">
+            {renderBoard()}
+          </div>
+          
+          {phase === 'setup' && inventory.length > 0 && (
+            <div className="mt-4 p-4 bg-slate-800 rounded-lg">
+              <div className="text-white mb-2">Remaining pieces: {inventory.length}</div>
+              <div className="flex flex-wrap gap-2 max-w-md">
+                {inventory.map((p, i) => (
+                  <div key={i} className={`px-3 py-1 rounded text-xs font-bold ${p.p === 1 ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'}`}>
+                    {p.r}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <div className="flex gap-3 mt-4 flex-wrap justify-center">
+            {phase === 'setup' && (
+              <>
+                <button onClick={finishSetup} className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700">
+                  {setupPlayer === 1 && mode === '2player' ? 'Next Player' : 'Start Game'}
+                </button>
+                <button onClick={() => {
+                  const nb = autoSetup(board, setupPlayer);
+                  setBoard(nb);
+                  setInventory([]);
+                }} className="px-6 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700">
+                  Auto Setup
+                </button>
+              </>
+            )}
+            <button onClick={() => setDevMode(!devMode)} className="px-6 py-2 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-700">
+              Dev: {devMode ? 'ON' : 'OFF'}
+            </button>
+            <button onClick={() => { setBoard(initBoard()); setPhase('setup'); setMode(null); setMsg('Choose mode'); setInventory([]); setSel(null); setMoves([]); }} 
+              className="px-6 py-2 bg-slate-600 text-white rounded-lg font-bold hover:bg-slate-700">
+              Reset
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<Salpakan />);
+  </script>
+</body>
+</html>
