@@ -43,7 +43,7 @@
     const autoSetup = (b, p) => {
       const nb = b.map(row => [...row]);
       const pieces = createPieces(p).sort(() => Math.random() - 0.5);
-      const rows = p === 1 ? [0, 1, 2] : [7, 6, 5];
+      const rows = p === 1 ? [7, 6, 5] : [0, 1, 2];
       let idx = 0;
       for (const r of rows) {
         for (let c = 0; c < 9; c++) {
@@ -82,7 +82,7 @@
             const result = battle(piece, b[to[0]][to[1]]);
             score += result === 'win' ? 50 : result === 'draw' ? 20 : -30;
           }
-          if (to[0] === 0) score += 30;
+          if (to[0] === 7) score += 30;
           if (piece.r === 'FLAG') score -= 50;
           moves.push({ from: [r, c], to, score });
         });
@@ -101,26 +101,32 @@
       const [msg, setMsg] = useState('Choose mode');
       const [devMode, setDevMode] = useState(false);
       const [setupPlayer, setSetupPlayer] = useState(1);
-      const [inventory, setInventory] = useState([]);
+      const [inventory, setInventory] = useState({});
+      const [showPicker, setShowPicker] = useState(null);
 
       const startSetup = (m) => {
         setMode(m);
         setBoard(initBoard());
-        setInventory(createPieces(1));
+        const inv = {};
+        RANKS.forEach(({ r, count }) => { inv[r] = count; });
+        setInventory(inv);
         setSetupPlayer(1);
         setPhase('setup');
-        setMsg('Player 1: Place your pieces (click squares)');
+        setMsg('Player 1: Click squares to place pieces');
       };
 
       const finishSetup = () => {
-        if (inventory.length > 0) {
-          setMsg('Place all pieces first!');
+        const totalPieces = Object.values(inventory).reduce((sum, count) => sum + count, 0);
+        if (totalPieces > 0) {
+          setMsg('Place all 21 pieces first!');
           return;
         }
         if (setupPlayer === 1 && mode === '2player') {
           setSetupPlayer(2);
-          setInventory(createPieces(2));
-          setMsg('Player 2: Place your pieces');
+          const inv = {};
+          RANKS.forEach(({ r, count }) => { inv[r] = count; });
+          setInventory(inv);
+          setMsg('Player 2: Click squares to place pieces');
         } else if (setupPlayer === 1 && mode === 'ai') {
           const nb = autoSetup(board, 2);
           setBoard(nb);
@@ -134,27 +140,33 @@
         }
       };
 
-      const placeOnBoard = (r, c) => {
-        if (phase !== 'setup' || inventory.length === 0) return;
-        const rows = setupPlayer === 1 ? [0, 1, 2] : [5, 6, 7];
-        if (!rows.includes(r)) return;
+      const placeOnBoard = (r, c, rank) => {
         if (board[r][c]) return;
-        
         const nb = board.map(row => [...row]);
-        nb[r][c] = inventory[0];
+        nb[r][c] = { r: rank, p: setupPlayer, id: setupPlayer * 100 + Math.random() };
         setBoard(nb);
-        setInventory(inventory.slice(1));
+        setInventory({ ...inventory, [rank]: inventory[rank] - 1 });
+        setShowPicker(null);
       };
 
       const removeFromBoard = (r, c) => {
-        if (phase !== 'setup') return;
         const piece = board[r][c];
         if (!piece || piece.p !== setupPlayer) return;
-        
         const nb = board.map(row => [...row]);
         nb[r][c] = null;
         setBoard(nb);
-        setInventory([...inventory, piece]);
+        setInventory({ ...inventory, [piece.r]: inventory[piece.r] + 1 });
+      };
+
+      const handleSetupClick = (r, c) => {
+        const rows = setupPlayer === 1 ? [7, 6, 5] : [0, 1, 2];
+        if (!rows.includes(r)) return;
+        
+        if (board[r][c]) {
+          removeFromBoard(r, c);
+        } else {
+          setShowPicker([r, c]);
+        }
       };
 
       const handlePlayClick = (r, c) => {
@@ -247,7 +259,7 @@
       };
 
       const renderBoard = () => {
-        const perspective = phase === 'playing' && mode === '2player' ? turn : 1;
+        const perspective = phase === 'playing' && mode === '2player' ? turn : setupPlayer;
         const displayBoard = perspective === 2 ? [...board].reverse().map(row => [...row].reverse()) : board;
         
         return displayBoard.map((row, r) => {
@@ -263,7 +275,7 @@
                 return (
                   <div
                     key={c}
-                    onClick={() => phase === 'setup' ? (cell ? removeFromBoard(actualR, actualC) : placeOnBoard(actualR, actualC)) : handlePlayClick(actualR, actualC)}
+                    onClick={() => phase === 'setup' ? handleSetupClick(actualR, actualC) : handlePlayClick(actualR, actualC)}
                     className={`w-14 h-14 border-2 border-amber-900 flex items-center justify-center font-bold cursor-pointer transition-all text-xs ${
                       isSelected ? 'bg-yellow-300 scale-105' : 
                       isValidMove ? 'bg-green-400 hover:bg-green-300' :
@@ -300,16 +312,9 @@
             {renderBoard()}
           </div>
           
-          {phase === 'setup' && inventory.length > 0 && (
-            <div className="mt-4 p-4 bg-slate-800 rounded-lg">
-              <div className="text-white mb-2">Remaining pieces: {inventory.length}</div>
-              <div className="flex flex-wrap gap-2 max-w-md">
-                {inventory.map((p, i) => (
-                  <div key={i} className={`px-3 py-1 rounded text-xs font-bold ${p.p === 1 ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'}`}>
-                    {p.r}
-                  </div>
-                ))}
-              </div>
+          {phase === 'setup' && (
+            <div className="mt-4 text-white text-sm">
+              Pieces remaining: {Object.values(inventory).reduce((sum, count) => sum + count, 0)} / 21
             </div>
           )}
           
@@ -322,7 +327,9 @@
                 <button onClick={() => {
                   const nb = autoSetup(board, setupPlayer);
                   setBoard(nb);
-                  setInventory([]);
+                  const inv = {};
+                  RANKS.forEach(({ r }) => { inv[r] = 0; });
+                  setInventory(inv);
                 }} className="px-6 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700">
                   Auto Setup
                 </button>
@@ -331,11 +338,52 @@
             <button onClick={() => setDevMode(!devMode)} className="px-6 py-2 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-700">
               Dev: {devMode ? 'ON' : 'OFF'}
             </button>
-            <button onClick={() => { setBoard(initBoard()); setPhase('setup'); setMode(null); setMsg('Choose mode'); setInventory([]); setSel(null); setMoves([]); }} 
+            <button onClick={() => { setBoard(initBoard()); setPhase('setup'); setMode(null); setMsg('Choose mode'); setInventory({}); setSel(null); setMoves([]); setShowPicker(null); }} 
               className="px-6 py-2 bg-slate-600 text-white rounded-lg font-bold hover:bg-slate-700">
               Reset
             </button>
           </div>
+
+          {showPicker && (
+            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-[fadeIn_0.2s_ease-out]"
+                 onClick={() => setShowPicker(null)}>
+              <div className="bg-slate-800 p-6 rounded-xl shadow-2xl max-w-2xl animate-[zoomIn_0.3s_ease-out]"
+                   onClick={(e) => e.stopPropagation()}>
+                <h2 className="text-2xl font-bold text-white mb-4">Choose a piece</h2>
+                <div className="grid grid-cols-5 gap-3">
+                  {RANKS.map(({ r, count }) => (
+                    inventory[r] > 0 && (
+                      <button
+                        key={r}
+                        onClick={() => placeOnBoard(showPicker[0], showPicker[1], r)}
+                        className={`px-4 py-3 rounded-lg font-bold text-lg transition-all hover:scale-110 ${
+                          setupPlayer === 1 ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'
+                        }`}
+                      >
+                        {r}
+                        <div className="text-xs mt-1">×{inventory[r]}</div>
+                      </button>
+                    )
+                  ))}
+                </div>
+                <button onClick={() => setShowPicker(null)} 
+                        className="mt-4 w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          <style>{`
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes zoomIn {
+              from { transform: scale(0.8); opacity: 0; }
+              to { transform: scale(1); opacity: 1; }
+            }
+          `}</style>
         </div>
       );
     }
