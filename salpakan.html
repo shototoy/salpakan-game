@@ -13,13 +13,16 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState } = React;
+    const { useState, useEffect } = React;
 
     const RANKS = [
-      { r: '5★', count: 1 }, { r: '4★', count: 1 }, { r: '3★', count: 1 }, { r: '2★', count: 1 }, { r: '1★', count: 1 },
-      { r: 'COL', count: 1 }, { r: 'LTC', count: 1 }, { r: 'MAJ', count: 1 }, { r: 'CPT', count: 1 },
-      { r: '1LT', count: 1 }, { r: '2LT', count: 1 }, { r: 'SGT', count: 2 }, { r: 'PVT', count: 6 },
-      { r: 'SPY', count: 2 }, { r: 'FLAG', count: 1 }
+      { r: '5★', count: 1, img: '5_star' }, { r: '4★', count: 1, img: '4_star' }, { r: '3★', count: 1, img: '3_star' }, 
+      { r: '2★', count: 1, img: '2_star' }, { r: '1★', count: 1, img: '1_star' },
+      { r: 'COL', count: 1, img: 'colonel' }, { r: 'LTC', count: 1, img: 'ltc' }, { r: 'MAJ', count: 1, img: 'major' }, 
+      { r: 'CPT', count: 1, img: 'captain' },
+      { r: '1LT', count: 1, img: '1lt' }, { r: '2LT', count: 1, img: '2lt' }, { r: 'SGT', count: 2, img: 'sergeant' }, 
+      { r: 'PVT', count: 6, img: 'private' },
+      { r: 'SPY', count: 2, img: 'spy' }, { r: 'FLAG', count: 1, img: 'flag' }
     ];
 
     const POWER = {
@@ -91,6 +94,27 @@
       return moves.length > 0 ? { from: moves[0].from, to: moves[0].to } : null;
     };
 
+    function PieceIcon({ rank, player, size = 'md' }) {
+      const [hasImage, setHasImage] = useState(false);
+      const rankData = RANKS.find(r => r.r === rank);
+      const imgPath = `./assets/${rankData?.img}.svg`;
+      
+      useEffect(() => {
+        const img = new Image();
+        img.onload = () => setHasImage(true);
+        img.onerror = () => setHasImage(false);
+        img.src = imgPath;
+      }, [imgPath]);
+
+      const sizeClass = size === 'sm' ? 'text-sm' : size === 'lg' ? 'text-2xl' : 'text-base';
+      const imgSize = size === 'sm' ? 'w-8 h-8' : size === 'lg' ? 'w-16 h-16' : 'w-12 h-12';
+
+      if (hasImage) {
+        return <img src={imgPath} alt={rank} className={imgSize} />;
+      }
+      return <span className={`font-bold ${sizeClass}`}>{rank}</span>;
+    }
+
     function Salpakan() {
       const [board, setBoard] = useState(initBoard());
       const [phase, setPhase] = useState('setup');
@@ -103,6 +127,8 @@
       const [setupPlayer, setSetupPlayer] = useState(1);
       const [inventory, setInventory] = useState({});
       const [showPicker, setShowPicker] = useState(null);
+      const [showTurnLock, setShowTurnLock] = useState(false);
+      const [pausePhase, setPausePhase] = useState(false);
 
       const startSetup = (m) => {
         setMode(m);
@@ -112,7 +138,7 @@
         setInventory(inv);
         setSetupPlayer(1);
         setPhase('setup');
-        setMsg('Player 1: Click squares to place pieces');
+        setMsg('Player 1: Place your pieces');
       };
 
       const finishSetup = () => {
@@ -122,11 +148,8 @@
           return;
         }
         if (setupPlayer === 1 && mode === '2player') {
-          setSetupPlayer(2);
-          const inv = {};
-          RANKS.forEach(({ r, count }) => { inv[r] = count; });
-          setInventory(inv);
-          setMsg('Player 2: Click squares to place pieces');
+          setShowTurnLock(true);
+          setPausePhase(true);
         } else if (setupPlayer === 1 && mode === 'ai') {
           const nb = autoSetup(board, 2);
           setBoard(nb);
@@ -136,7 +159,28 @@
         } else {
           setPhase('playing');
           setTurn(1);
+          setShowTurnLock(true);
+          setPausePhase(true);
+        }
+      };
+
+      const confirmTurn = () => {
+        if (pausePhase && setupPlayer === 1 && mode === '2player') {
+          setSetupPlayer(2);
+          const inv = {};
+          RANKS.forEach(({ r, count }) => { inv[r] = count; });
+          setInventory(inv);
+          setMsg('Player 2: Place your pieces');
+          setShowTurnLock(false);
+          setPausePhase(false);
+        } else if (pausePhase && phase === 'setup') {
+          setPhase('playing');
+          setTurn(1);
           setMsg('Player 1\'s turn');
+          setShowTurnLock(false);
+          setPausePhase(false);
+        } else {
+          setShowTurnLock(false);
         }
       };
 
@@ -248,8 +292,9 @@
                 setMsg('Your turn');
               }, 800);
             } else {
-              setTurn(turn === 1 ? 2 : 1);
-              setMsg(`Player ${turn === 1 ? 2 : 1}'s turn`);
+              const nextTurn = turn === 1 ? 2 : 1;
+              setTurn(nextTurn);
+              setShowTurnLock(true);
             }
           } else {
             setSel(null);
@@ -276,13 +321,13 @@
                   <div
                     key={c}
                     onClick={() => phase === 'setup' ? handleSetupClick(actualR, actualC) : handlePlayClick(actualR, actualC)}
-                    className={`w-14 h-14 border-2 border-amber-900 flex items-center justify-center font-bold cursor-pointer transition-all text-xs ${
-                      isSelected ? 'bg-yellow-300 scale-105' : 
-                      isValidMove ? 'bg-green-400 hover:bg-green-300' :
-                      'bg-amber-700 hover:bg-amber-600'
+                    className={`w-16 h-16 md:w-20 md:h-20 border-2 flex items-center justify-center font-bold cursor-pointer transition-all shadow-md ${
+                      isSelected ? 'bg-yellow-400 scale-105 border-yellow-600 shadow-xl' : 
+                      isValidMove ? 'bg-emerald-400 hover:bg-emerald-300 border-emerald-600' :
+                      'bg-gradient-to-br from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 border-amber-800'
                     } ${cell?.p === 1 ? 'text-blue-900' : cell?.p === 2 ? 'text-red-100' : ''}`}
                   >
-                    {cell ? (canSee ? cell.r : '?') : ''}
+                    {cell ? (canSee ? <PieceIcon rank={cell.r} player={cell.p} /> : <span className="text-3xl text-amber-200">?</span>) : ''}
                   </div>
                 );
               })}
@@ -292,37 +337,47 @@
       };
 
       return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-          <h1 className="text-3xl font-bold text-amber-400 mb-2">Game of the Generals</h1>
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4">
+          <div className="mb-6 text-center">
+            <h1 className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400 drop-shadow-lg mb-2">
+              GAME OF THE GENERALS
+            </h1>
+            <div className="text-sm text-amber-300 italic">Salpakan</div>
+          </div>
           
           {phase === 'setup' && mode === null && (
-            <div className="flex gap-4 mb-4">
-              <button onClick={() => startSetup('ai')} className="px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700">
-                vs AI
+            <div className="flex gap-6 mb-8">
+              <button onClick={() => startSetup('ai')} 
+                className="px-10 py-5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xl rounded-2xl font-bold hover:from-blue-500 hover:to-blue-600 shadow-2xl transform hover:scale-105 transition-all">
+                🤖 vs AI
               </button>
-              <button onClick={() => startSetup('2player')} className="px-6 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700">
-                2 Players
+              <button onClick={() => startSetup('2player')} 
+                className="px-10 py-5 bg-gradient-to-r from-green-600 to-green-700 text-white text-xl rounded-2xl font-bold hover:from-green-500 hover:to-green-600 shadow-2xl transform hover:scale-105 transition-all">
+                👥 2 Players
               </button>
             </div>
           )}
           
-          <div className="text-lg text-white mb-4 font-semibold">{msg}</div>
+          <div className="text-2xl text-amber-300 mb-6 font-bold drop-shadow-lg">{msg}</div>
           
-          <div className="inline-block bg-amber-950 p-3 rounded-lg shadow-2xl border-4 border-amber-800">
+          <div className="inline-block bg-gradient-to-br from-amber-950 to-amber-900 p-4 rounded-2xl shadow-2xl border-4 border-amber-700">
             {renderBoard()}
           </div>
           
           {phase === 'setup' && (
-            <div className="mt-4 text-white text-sm">
-              Pieces remaining: {Object.values(inventory).reduce((sum, count) => sum + count, 0)} / 21
+            <div className="mt-6 px-8 py-4 bg-slate-800 rounded-xl shadow-xl border-2 border-slate-700">
+              <div className="text-amber-300 text-lg font-bold">
+                Pieces remaining: <span className="text-yellow-400 text-2xl">{Object.values(inventory).reduce((sum, count) => sum + count, 0)}</span> / 21
+              </div>
             </div>
           )}
           
-          <div className="flex gap-3 mt-4 flex-wrap justify-center">
+          <div className="flex gap-4 mt-6 flex-wrap justify-center">
             {phase === 'setup' && (
               <>
-                <button onClick={finishSetup} className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700">
-                  {setupPlayer === 1 && mode === '2player' ? 'Next Player' : 'Start Game'}
+                <button onClick={finishSetup} 
+                  className="px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white text-lg rounded-xl font-bold hover:from-green-500 hover:to-green-600 shadow-lg transform hover:scale-105 transition-all">
+                  {setupPlayer === 1 && mode === '2player' ? '✓ Next Player' : '🎮 Start Game'}
                 </button>
                 <button onClick={() => {
                   const nb = autoSetup(board, setupPlayer);
@@ -330,46 +385,68 @@
                   const inv = {};
                   RANKS.forEach(({ r }) => { inv[r] = 0; });
                   setInventory(inv);
-                }} className="px-6 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700">
-                  Auto Setup
+                }} className="px-8 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white text-lg rounded-xl font-bold hover:from-purple-500 hover:to-purple-600 shadow-lg transform hover:scale-105 transition-all">
+                  ⚡ Auto Setup
                 </button>
               </>
             )}
-            <button onClick={() => setDevMode(!devMode)} className="px-6 py-2 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-700">
-              Dev: {devMode ? 'ON' : 'OFF'}
+            <button onClick={() => setDevMode(!devMode)} 
+              className="px-8 py-3 bg-gradient-to-r from-orange-600 to-orange-700 text-white text-lg rounded-xl font-bold hover:from-orange-500 hover:to-orange-600 shadow-lg transform hover:scale-105 transition-all">
+              🔧 Dev: {devMode ? 'ON' : 'OFF'}
             </button>
-            <button onClick={() => { setBoard(initBoard()); setPhase('setup'); setMode(null); setMsg('Choose mode'); setInventory({}); setSel(null); setMoves([]); setShowPicker(null); }} 
-              className="px-6 py-2 bg-slate-600 text-white rounded-lg font-bold hover:bg-slate-700">
-              Reset
+            <button onClick={() => { setBoard(initBoard()); setPhase('setup'); setMode(null); setMsg('Choose mode'); setInventory({}); setSel(null); setMoves([]); setShowPicker(null); setShowTurnLock(false); }} 
+              className="px-8 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white text-lg rounded-xl font-bold hover:from-slate-500 hover:to-slate-600 shadow-lg transform hover:scale-105 transition-all">
+              🔄 Reset
             </button>
           </div>
 
           {showPicker && (
-            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-[fadeIn_0.2s_ease-out]"
+            <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]"
                  onClick={() => setShowPicker(null)}>
-              <div className="bg-slate-800 p-6 rounded-xl shadow-2xl max-w-2xl animate-[zoomIn_0.3s_ease-out]"
+              <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-8 rounded-3xl shadow-2xl max-w-3xl border-4 border-amber-600 animate-[zoomIn_0.3s_ease-out]"
                    onClick={(e) => e.stopPropagation()}>
-                <h2 className="text-2xl font-bold text-white mb-4">Choose a piece</h2>
-                <div className="grid grid-cols-5 gap-3">
+                <h2 className="text-3xl font-black text-amber-400 mb-6 text-center">Choose Your Piece</h2>
+                <div className="grid grid-cols-5 gap-4">
                   {RANKS.map(({ r, count }) => (
                     inventory[r] > 0 && (
                       <button
                         key={r}
                         onClick={() => placeOnBoard(showPicker[0], showPicker[1], r)}
-                        className={`px-4 py-3 rounded-lg font-bold text-lg transition-all hover:scale-110 ${
-                          setupPlayer === 1 ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'
+                        className={`px-4 py-4 rounded-xl font-bold text-lg transition-all hover:scale-110 shadow-lg ${
+                          setupPlayer === 1 ? 'bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white' : 'bg-gradient-to-br from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white'
                         }`}
                       >
-                        {r}
-                        <div className="text-xs mt-1">×{inventory[r]}</div>
+                        <PieceIcon rank={r} player={setupPlayer} size="sm" />
+                        <div className="text-sm mt-2 bg-black bg-opacity-30 rounded px-2 py-1">×{inventory[r]}</div>
                       </button>
                     )
                   ))}
                 </div>
                 <button onClick={() => setShowPicker(null)} 
-                        className="mt-4 w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                        className="mt-6 w-full px-6 py-3 bg-gray-700 text-white text-lg rounded-xl hover:bg-gray-600 font-bold shadow-lg">
                   Cancel
                 </button>
+              </div>
+            </div>
+          )}
+
+          {showTurnLock && (
+            <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]">
+              <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-12 rounded-3xl shadow-2xl max-w-lg border-4 border-amber-600 text-center animate-[zoomIn_0.4s_ease-out]">
+                <div className="text-6xl mb-6">🔒</div>
+                <h2 className="text-4xl font-black text-amber-400 mb-4">
+                  {pausePhase ? (setupPlayer === 1 && mode === '2player' ? 'Player 2\'s Turn' : 'Game Starting!') : `Player ${turn}'s Turn`}
+                </h2>
+                <p className="text-xl text-gray-300 mb-8">
+                  {pausePhase ? 'Pass the device to the next player' : 'Are you ready?'}
+                </p>
+                <button onClick={confirmTurn}
+                        className="px-12 py-5 bg-gradient-to-r from-green-600 to-green-700 text-white text-2xl rounded-2xl font-bold hover:from-green-500 hover:to-green-600 shadow-2xl transform hover:scale-105 transition-all">
+                  I'm Ready ✓
+                </button>
+                <p className="text-sm text-amber-300 mt-6 italic">
+                  ⚠️ This lock prevents cheating - confirm only when you're the current player
+                </p>
               </div>
             </div>
           )}
