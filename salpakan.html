@@ -77,10 +77,14 @@
     };
 
     const battle = (a, d) => {
-      if (a.r === 'FLAG' || d.r === 'FLAG') return a.r === 'FLAG' ? 'lose' : 'win';
-      if (a.r === 'SPY') return d.r === '5★' ? 'win' : 'lose';
-      if (d.r === 'SPY') return a.r === 'PVT' ? 'win' : 'lose';
-      return POWER[a.r] > POWER[d.r] ? 'win' : POWER[a.r] < POWER[d.r] ? 'lose' : 'draw';
+      if (d.r === 'FLAG') return 'win';
+      if (a.r === 'FLAG') return 'lose';
+      if (a.r === d.r) return 'draw';
+      if (a.r === 'SPY' && d.r === 'PVT') return 'lose';
+      if (a.r === 'SPY') return 'win';
+      if (d.r === 'SPY' && a.r === 'PVT') return 'win';
+      if (d.r === 'SPY') return 'lose';
+      return POWER[a.r] > POWER[d.r] ? 'win' : 'lose';
     };
 
     const validMoves = (b, r, c) => {
@@ -339,7 +343,17 @@
                 const actualC = perspective === 2 ? 8 - c : c;
                 const isSelected = sel?.[0] === actualR && sel?.[1] === actualC;
                 const isValidMove = moves.some(([mr, mc]) => mr === actualR && mc === actualC);
-                const canSee = devMode || !cell || cell.p === (phase === 'playing' ? turn : setupPlayer);
+                
+                let canSee = devMode || !cell;
+                if (cell && !devMode) {
+                  if (phase === 'setup') {
+                    canSee = cell.p === setupPlayer;
+                  } else if (mode === 'ai') {
+                    canSee = cell.p === 1;
+                  } else {
+                    canSee = cell.p === turn;
+                  }
+                }
                 
                 return (
                   <div
