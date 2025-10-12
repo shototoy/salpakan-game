@@ -46,6 +46,7 @@ wss.on('connection', (ws) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
+      console.log('Server received:', data.type, 'from player', currentPlayerId);
       
       switch (data.type) {
         case 'getRooms': {
@@ -64,7 +65,8 @@ wss.on('connection', (ws) => {
               id: roomId,
               players: [],
               setupComplete: { 1: false, 2: false },
-              boards: { 1: null, 2: null }
+              boards: { 1: null, 2: null },
+              readyStates: { 1: false, 2: false }
             });
             console.log(`Created new room: ${roomId}`);
           }
@@ -92,12 +94,14 @@ wss.on('connection', (ws) => {
             type: 'roomJoined',
             roomId,
             playerId: playerNumber,
-            players: room.players.map(p => p.number)
+            players: room.players.map(p => p.number),
+            readyStates: room.readyStates
           }));
           
           broadcast(room, {
             type: 'playerJoined',
-            players: room.players.map(p => p.number)
+            players: room.players.map(p => p.number),
+            readyStates: room.readyStates
           }, ws);
           
           broadcastToAll({
@@ -105,6 +109,48 @@ wss.on('connection', (ws) => {
             rooms: getRoomsList()
           });
           
+          break;
+        }
+        
+        case 'toggleReady': {
+          const { roomId, playerId, isReady } = data;
+          console.log(`📨 toggleReady received: room=${roomId}, player=${playerId}, isReady=${isReady}`);
+          
+          const room = rooms.get(roomId);
+          
+          if (!room) {
+            console.log(`❌ toggleReady: Room ${roomId} not found`);
+            return;
+          }
+          
+          const playerIdNum = typeof playerId === 'string' ? parseInt(playerId) : playerId;
+          room.readyStates[playerIdNum] = isReady;
+          const allReady = room.readyStates[1] && room.readyStates[2] && room.players.length === 2;
+          
+          console.log(`✅ Room ${roomId} ready states updated:`);
+          console.log(`   P1=${room.readyStates[1]}, P2=${room.readyStates[2]}, AllReady=${allReady}`);
+          
+          const responseMessage = {
+            type: 'playerReady',
+            roomId: roomId,
+            readyStates: { 1: room.readyStates[1], 2: room.readyStates[2] },
+            allReady: allReady
+          };
+          
+          console.log(`📤 Broadcasting playerReady to ${room.players.length} players:`, JSON.stringify(responseMessage));
+          
+          let sentCount = 0;
+          room.players.forEach(player => {
+            if (player.ws && player.ws.readyState === WebSocket.OPEN) {
+              console.log(`   ✅ Sending to Player ${player.id}`);
+              player.ws.send(JSON.stringify(responseMessage));
+              sentCount++;
+            } else {
+              console.log(`   ❌ Cannot send to Player ${player.id} - WebSocket state: ${player.ws?.readyState}`);
+            }
+          });
+          
+          console.log(`📊 Sent to ${sentCount}/${room.players.length} players`);
           break;
         }
         
@@ -128,20 +174,34 @@ wss.on('connection', (ws) => {
         }
         
         case 'deploymentUpdate': {
-          const { roomId, playerId, piecesPlaced } = data;
+          const { roomId, playerId, piecesPlaced, board } = data;
           const room = rooms.get(roomId);
           
           if (!room) return;
           
+          room.boards[playerId] = board;
+          
+          const hiddenBoard = board.map(row => 
+            row.map(cell => {
+              if (cell && cell.p === playerId) {
+                return { ...cell, r: '?' };
+              }
+              return cell;
+            })
+          );
+          
           broadcast(room, {
             type: 'opponentDeploymentUpdate',
             playerId,
-            piecesPlaced
+            piecesPlaced,
+            board: hiddenBoard
           }, ws);
+          
+          console.log(`Player ${playerId} deployed ${piecesPlaced} pieces in room ${roomId}`);
           
           break;
         }
-        
+
         case 'setupComplete': {
           const { roomId, playerId, board } = data;
           const room = rooms.get(roomId);

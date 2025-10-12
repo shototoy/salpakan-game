@@ -143,62 +143,86 @@
       }
     };
 
-    const WebSocketManager = {
-      ws: null,
-      callbacks: {},
+    // REPLACE THE ENTIRE WebSocketManager object (around line 118-170)
+const WebSocketManager = {
+  ws: null,
+  callbacks: {},
 
-      connect: (roomId, playerId) => {
-        const host = window.location.hostname;
-        const port = 8080;
+  connect: (roomId, playerId) => {
+    // CRITICAL: Disconnect any existing connection first
+    if (WebSocketManager.ws) {
+      console.log('Closing existing WebSocket connection');
+      WebSocketManager.ws.close();
+      WebSocketManager.ws = null;
+    }
 
-        console.log(`Connecting to WebSocket: ws://${host}:${port}`);
-        const ws = new WebSocket(`ws://${host}:${port}`);
-        WebSocketManager.ws = ws;
+    const host = window.location.hostname;
+    const port = 8080;
 
-        ws.onopen = () => {
-          console.log('WebSocket connected, joining room:', roomId);
-          ws.send(JSON.stringify({ type: 'join', roomId, playerId }));
-        };
+    console.log(`Creating NEW WebSocket connection: ws://${host}:${port}`);
+    const ws = new WebSocket(`ws://${host}:${port}`);
+    WebSocketManager.ws = ws;
 
-        ws.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          console.log('WebSocket message received:', data);
-          const callback = WebSocketManager.callbacks[data.type];
-          if (callback) callback(data);
-        };
-
-        ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
-        };
-
-        ws.onclose = () => {
-          console.log('WebSocket disconnected');
-        };
-
-        return ws;
-      },
-
-      send: (data) => {
-        if (WebSocketManager.ws && WebSocketManager.ws.readyState === WebSocket.OPEN) {
-          console.log('Sending WebSocket message:', data);
-          WebSocketManager.ws.send(JSON.stringify(data));
-        } else {
-          console.error('WebSocket not connected, cannot send:', data);
-        }
-      },
-
-      on: (type, callback) => {
-        WebSocketManager.callbacks[type] = callback;
-      },
-
-      disconnect: () => {
-        if (WebSocketManager.ws) {
-          WebSocketManager.ws.close();
-          WebSocketManager.ws = null;
-        }
-        WebSocketManager.callbacks = {};
-      }
+    ws.onopen = () => {
+      console.log('WebSocket opened, joining room:', roomId);
+      ws.send(JSON.stringify({ type: 'join', roomId, playerId }));
     };
+
+    ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log('🔵 WebSocket RAW message:', data.type);
+  console.log('📦 Full data:', JSON.stringify(data));
+  console.log('📋 Available handlers:', Object.keys(WebSocketManager.callbacks));
+  
+  const callback = WebSocketManager.callbacks[data.type];
+  if (callback) {
+    console.log(`✅ Handler found for: ${data.type}`);
+    callback(data);
+  } else {
+    console.log(`❌ NO handler for: ${data.type}`);
+  }
+};
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    ws.onclose = () => {
+      console.log('WebSocket closed');
+      WebSocketManager.ws = null;
+    };
+
+    return ws;
+  },
+
+  send: (data) => {
+    if (WebSocketManager.ws && WebSocketManager.ws.readyState === WebSocket.OPEN) {
+      console.log('Sending message:', data);
+      WebSocketManager.ws.send(JSON.stringify(data));
+    } else {
+      console.error('WebSocket not ready! State:', WebSocketManager.ws?.readyState);
+      console.error('Attempted to send:', data);
+    }
+  },
+
+  on: (type, callback) => {
+    console.log(`Registering handler for: ${type}`);
+    WebSocketManager.callbacks[type] = callback;
+  },
+
+  off: (type) => {
+    console.log(`Removing handler for: ${type}`);
+    delete WebSocketManager.callbacks[type];
+  },
+
+  disconnect: () => {
+    console.log('Disconnecting WebSocket');
+    if (WebSocketManager.ws) {
+      WebSocketManager.ws.close();
+      WebSocketManager.ws = null;
+    }
+    WebSocketManager.callbacks = {};
+  }
+};
 
     function PieceIcon({ rank, player }) {
       const rankData = RANKS.find(r => r.r === rank);
@@ -355,85 +379,121 @@
       );
     }
 
-    function RoomWaiting({ roomId, onLeave, onStart, players, isReady, connectionStatus }) {
-      const [debugInfo, setDebugInfo] = React.useState('');
-      
-      React.useEffect(() => {
-        const info = `
-Players Array: ${JSON.stringify(players)}
-Player Count: ${players.filter(p => p !== null && p !== undefined).length}
-Is Ready: ${isReady}
+    function RoomWaiting({ roomId, onLeave, onStart, onToggleReady, players, isReady, myReady, opponentReady, playerId, connectionStatus }) {
+  const [debugInfo, setDebugInfo] = React.useState('');
+  
+  const playerSlots = React.useMemo(() => {
+    const slots = [null, null];
+    players.forEach(p => {
+      if (p === 1) slots[0] = 1;
+      if (p === 2) slots[1] = 2;
+    });
+    return slots;
+  }, [players]);
+  
+  React.useEffect(() => {
+    const playerCount = players.filter(p => p !== null && p !== undefined).length;
+    const info = `
+Players: [${players[0]}, ${players[1]}]
+Slots: [${playerSlots[0]}, ${playerSlots[1]}]
+Count: ${playerCount}
+My PlayerId: ${playerId}
+My Ready: ${myReady}
+Opponent Ready: ${opponentReady}
+All Ready: ${isReady}
 Connection: ${connectionStatus}
-        `;
-        setDebugInfo(info);
-      }, [players, isReady, connectionStatus]);
-      
-      return (
-        <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
-          <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700 text-center">
-            <button onClick={onLeave} 
-              className="mb-4 text-yellow-600 hover:text-yellow-400 font-serif text-sm">
-              ← Leave Room
-            </button>
-            
-            <div className="text-5xl mb-4">🎮</div>
-            <h2 className="text-3xl font-serif font-black text-yellow-400 mb-4 tracking-wider">ROOM</h2>
-            
-            <div className="bg-black rounded-lg p-6 mb-6 border-2 border-yellow-800">
-              <p className="text-yellow-600 text-sm font-serif mb-2">Room ID</p>
-              <p className="text-yellow-400 text-4xl font-mono font-bold tracking-widest">{roomId}</p>
-              <p className="text-yellow-700 text-xs font-serif italic mt-2">Share this code with your opponent</p>
-              <div className={`mt-3 text-xs font-serif ${connectionStatus === 'connected' ? 'text-green-500' : connectionStatus === 'connecting' ? 'text-yellow-500' : 'text-red-500'}`}>
-                {connectionStatus === 'connected' ? '✓ Connected' : connectionStatus === 'connecting' ? '⏳ Connecting...' : '✗ Disconnected'}
-              </div>
-            </div>
-            
-            <div className="bg-zinc-800 rounded-lg p-4 mb-6 border-2 border-yellow-900">
-              <p className="text-yellow-500 text-sm font-serif mb-3">Players ({players.filter(p => p !== null && p !== undefined).length}/2)</p>
-              <div className="space-y-2">
-                {[0, 1].map((idx) => {
-                  const hasPlayer = players[idx] !== null && players[idx] !== undefined;
-                  return (
-                    <div key={idx} className={`bg-black rounded px-3 py-2 flex items-center justify-between ${!hasPlayer ? 'opacity-50' : ''}`}>
-                      <span className={hasPlayer ? 'text-yellow-400 font-serif' : 'text-yellow-600 font-serif'}>
-                        Commander {idx + 1} {hasPlayer ? `(P${players[idx]})` : ''}
-                      </span>
-                      <span className={hasPlayer ? 'text-green-500 text-sm' : 'text-yellow-700 text-sm'}>
-                        {hasPlayer ? '✓ Ready' : '⏳ Waiting...'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            
-            <div className="bg-purple-950 rounded-lg p-3 mb-4 border border-purple-800 text-left">
-              <p className="text-purple-400 text-xs font-mono whitespace-pre">{debugInfo}</p>
-            </div>
-            
-            <button 
-              onClick={onStart}
-              disabled={!isReady || connectionStatus !== 'connected'}
-              className="w-full px-6 py-3 bg-gradient-to-r from-emerald-700 to-emerald-800 text-white text-lg font-serif font-bold rounded border-2 border-emerald-600 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:from-emerald-600 hover:to-emerald-700">
-              ⚔ START BATTLE
-            </button>
-            
-            <p className="text-xs text-yellow-700 mt-4 italic font-serif">
-              {isReady ? 'Both players ready! Click START BATTLE' : 'Waiting for opponent to join...'}
-            </p>
-            
-            {connectionStatus !== 'connected' && (
-              <p className="text-xs text-red-500 mt-2 font-serif">
-                Connection issue - Check if server is running on port 8080
-              </p>
-            )}
+    `;
+    setDebugInfo(info);
+    console.log('RoomWaiting render:', info);
+  }, [players, playerSlots, isReady, myReady, opponentReady, playerId, connectionStatus]);
+  
+  return (
+    <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
+      <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700 text-center">
+        <button onClick={onLeave} 
+          className="mb-4 text-yellow-600 hover:text-yellow-400 font-serif text-sm">
+          ← Leave Room
+        </button>
+        
+        <div className="text-5xl mb-4">🎮</div>
+        <h2 className="text-3xl font-serif font-black text-yellow-400 mb-4 tracking-wider">ROOM</h2>
+        
+        <div className="bg-black rounded-lg p-6 mb-6 border-2 border-yellow-800">
+          <p className="text-yellow-600 text-sm font-serif mb-2">Room ID</p>
+          <p className="text-yellow-400 text-4xl font-mono font-bold tracking-widest">{roomId}</p>
+          <p className="text-yellow-700 text-xs font-serif italic mt-2">Share this code with your opponent</p>
+          <div className={`mt-3 text-xs font-serif ${connectionStatus === 'connected' ? 'text-green-500' : connectionStatus === 'connecting' ? 'text-yellow-500' : 'text-red-500'}`}>
+            {connectionStatus === 'connected' ? '✓ Connected' : connectionStatus === 'connecting' ? '⏳ Connecting...' : '✗ Disconnected'}
           </div>
         </div>
-      );
-    }
+        
+        <div className="bg-zinc-800 rounded-lg p-4 mb-6 border-2 border-yellow-900">
+          <p className="text-yellow-500 text-sm font-serif mb-3">Players ({players.filter(p => p !== null && p !== undefined).length}/2)</p>
+          <div className="space-y-2">
+            {playerSlots.map((playerNum, idx) => {
+              const hasPlayer = playerNum !== null;
+              const isMe = hasPlayer && playerNum === playerId;
+              const playerReady = hasPlayer ? (isMe ? myReady : opponentReady) : false;
+              
+              return (
+                <div key={idx} className={`bg-black rounded px-3 py-2 flex items-center justify-between ${!hasPlayer ? 'opacity-50' : ''}`}>
+                  <span className={hasPlayer ? 'text-yellow-400 font-serif' : 'text-yellow-600 font-serif'}>
+                    Commander {idx + 1} {hasPlayer ? `(P${playerNum})` : ''} {isMe ? '(You)' : ''}
+                  </span>
+                  <span className={`text-sm ${hasPlayer ? (playerReady ? 'text-green-500' : 'text-yellow-500') : 'text-yellow-700'}`}>
+                    {hasPlayer ? (playerReady ? '✓ Ready' : '⏳ Not Ready') : '⏳ Waiting...'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        
+        <div className="bg-purple-950 rounded-lg p-3 mb-4 border border-purple-800 text-left">
+          <p className="text-purple-400 text-xs font-mono whitespace-pre">{debugInfo}</p>
+        </div>
+        
+        <button 
+          onClick={onToggleReady}
+          disabled={connectionStatus !== 'connected' || players.filter(p => p !== null && p !== undefined).length < 2}
+          className={`w-full px-6 py-3 text-lg font-serif font-bold rounded border-2 shadow-lg transition-all mb-3 ${
+            myReady 
+              ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-gray-300 border-gray-600' 
+              : 'bg-gradient-to-r from-yellow-700 to-yellow-800 text-black border-yellow-600 hover:from-yellow-600 hover:to-yellow-700'
+          } disabled:opacity-50 disabled:cursor-not-allowed`}>
+          {myReady ? '✓ READY (Click to Unready)' : 'READY UP'}
+        </button>
+        
+        {playerId === 1 && (
+          <button 
+            onClick={onStart}
+            disabled={!isReady || connectionStatus !== 'connected'}
+            className="w-full px-6 py-3 bg-gradient-to-r from-emerald-700 to-emerald-800 text-white text-lg font-serif font-bold rounded border-2 border-emerald-600 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:from-emerald-600 hover:to-emerald-700">
+            ⚔ START BATTLE
+          </button>
+        )}
+        
+        <p className="text-xs text-yellow-700 mt-4 italic font-serif">
+          {players.filter(p => p !== null && p !== undefined).length < 2 
+            ? 'Waiting for second player...'
+            : isReady 
+              ? (playerId === 1 ? 'Both ready! Click START BATTLE' : 'Both ready! Waiting for host to start...') 
+              : 'Both players must click READY UP'}
+        </p>
+        
+        {connectionStatus !== 'connected' && (
+          <p className="text-xs text-red-500 mt-2 font-serif">
+            Connection issue - Check if server is running on port 8080
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
-    function GameBoard({ board, phase, mode, multiplayerMode, turn, setupPlayer, sel, moves, lastMove, devMode, onCellClick }) {
-      const perspective = phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : setupPlayer;
+
+    function GameBoard({ board, phase, mode, multiplayerMode, turn, setupPlayer, sel, moves, lastMove, devMode, playerId, onCellClick }) {
+      const perspective = phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : (multiplayerMode === 'online' ? playerId : setupPlayer);
       
       const rows = [];
       for (let r = 0; r < 8; r++) {
@@ -457,13 +517,13 @@ Connection: ${connectionStatus}
           let canSee = devMode || !cell;
           if (cell && !devMode) {
             if (phase === 'setup') {
-              canSee = cell.p === setupPlayer;
+              canSee = multiplayerMode === 'online' ? cell.p === playerId : cell.p === setupPlayer;
             } else if (mode === 'ai') {
               canSee = cell.p === 1;
             } else if (multiplayerMode === 'local') {
               canSee = cell.p === turn;
             } else if (multiplayerMode === 'online') {
-              canSee = cell.p === turn;
+              canSee = cell.p === playerId;
             } else {
               canSee = true;
             }
@@ -498,11 +558,10 @@ Connection: ${connectionStatus}
       }
       return rows;
     }
-
     function Sidebar({ 
       phase, mode, multiplayerMode, msg, roomId, inventory, defeated, 
-      setupPlayer, turn, board, devMode, lastMove, onFinishSetup, 
-      onAutoSetup, onReset 
+      setupPlayer, turn, board, devMode, lastMove, opponentPiecesPlaced,
+      onFinishSetup, onAutoSetup, onReset 
     }) {
       return (
         <div className="order-2 flex-shrink-0 lg:flex-initial bg-gradient-to-b from-zinc-900 to-black border-t lg:border-t-0 lg:border-l-4 border-yellow-700 flex flex-col p-2 py-3 lg:p-4 overflow-y-auto max-h-[45vh] lg:max-h-full lg:w-[380px]">
@@ -518,6 +577,14 @@ Connection: ${connectionStatus}
             )}
           </div>
           
+          {phase === 'setup' && multiplayerMode === 'online' && opponentPiecesPlaced > 0 && (
+            <div className="mb-2 lg:mb-4 px-3 py-2 lg:px-4 lg:py-3 bg-blue-950 rounded border-2 border-blue-900">
+              <div className="text-blue-400 text-sm lg:text-base font-serif font-bold">
+                Opponent Deploying: <span className="text-blue-300 text-lg lg:text-xl">{opponentPiecesPlaced}</span> / 21
+              </div>
+            </div>
+          )}
+
           {phase === 'setup' && (
             <>
               <div className="text-center text-base lg:text-lg text-yellow-400 mb-2 lg:mb-4 font-serif font-bold px-3 py-2 lg:px-4 lg:py-3 bg-black rounded border-2 border-yellow-800">
@@ -760,603 +827,832 @@ Connection: ${connectionStatus}
         </div>
       );
     }
+    
+    
     function Salpakan() {
-      const [screen, setScreen] = useState('home');
-      const [board, setBoard] = useState(GameLogic.initBoard());
-      const [phase, setPhase] = useState('setup');
-      const [mode, setMode] = useState(null);
-      const [turn, setTurn] = useState(1);
-      const [sel, setSel] = useState(null);
-      const [moves, setMoves] = useState([]);
-      const [msg, setMsg] = useState('Choose Mode');
-      const [devMode, setDevMode] = useState(false);
-      const [setupPlayer, setSetupPlayer] = useState(1);
-      const [inventory, setInventory] = useState({});
-      const [showPicker, setShowPicker] = useState(null);
-      const [showTurnLock, setShowTurnLock] = useState(false);
-      const [pausePhase, setPausePhase] = useState(false);
-      const [battleResult, setBattleResult] = useState(null);
-      const [defeated, setDefeated] = useState({ 1: [], 2: [] });
-      const [showBattleReport, setShowBattleReport] = useState(false);
-      const [lastMove, setLastMove] = useState(null);
-      const [showingBattleForPlayer, setShowingBattleForPlayer] = useState(null);
-      const [roomId, setRoomId] = useState('');
-      const [multiplayerMode, setMultiplayerMode] = useState(null);
-      const [playerId, setPlayerId] = useState(null);
-      const [players, setPlayers] = useState([null, null]);
-      const [isRoomReady, setIsRoomReady] = useState(false);
-      const [opponentBoard, setOpponentBoard] = useState(null);
-      const [availableRooms, setAvailableRooms] = useState([]);
-      const [connectionStatus, setConnectionStatus] = useState('disconnected');
+      const playerIdRef = React.useRef(null);
+  const [screen, setScreen] = useState('home');
+  const [board, setBoard] = useState(GameLogic.initBoard());
+  const [phase, setPhase] = useState('setup');
+  const [mode, setMode] = useState(null);
+  const [turn, setTurn] = useState(1);
+  const [sel, setSel] = useState(null);
+  const [moves, setMoves] = useState([]);
+  const [msg, setMsg] = useState('Choose Mode');
+  const [devMode, setDevMode] = useState(false);
+  const [setupPlayer, setSetupPlayer] = useState(1);
+  const [inventory, setInventory] = useState({});
+  const [showPicker, setShowPicker] = useState(null);
+  const [showTurnLock, setShowTurnLock] = useState(false);
+  const [pausePhase, setPausePhase] = useState(false);
+  const [battleResult, setBattleResult] = useState(null);
+  const [defeated, setDefeated] = useState({ 1: [], 2: [] });
+  const [showBattleReport, setShowBattleReport] = useState(false);
+  const [lastMove, setLastMove] = useState(null);
+  const [showingBattleForPlayer, setShowingBattleForPlayer] = useState(null);
+  const [roomId, setRoomId] = useState('');
+  const [multiplayerMode, setMultiplayerMode] = useState(null);
+  const [playerId, setPlayerId] = useState(null);
+  const [players, setPlayers] = useState([null, null]);
+  const [isRoomReady, setIsRoomReady] = useState(false);
+  const [myReadyState, setMyReadyState] = useState(false);
+  const [opponentReadyState, setOpponentReadyState] = useState(false);
+  const [opponentBoard, setOpponentBoard] = useState(null);
+  const [availableRooms, setAvailableRooms] = useState([]);
+  const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [opponentPiecesPlaced, setOpponentPiecesPlaced] = useState(0);
 
-      useEffect(() => {
-        console.log('Salpakan game initialized');
-        console.log('Current screen:', screen);
-      }, []);
+  useEffect(() => {
+    console.log('Salpakan game initialized');
+    console.log('Current screen:', screen);
+  }, []);
 
-      useEffect(() => {
-        if (screen === 'multiplayer') {
-          console.log('Multiplayer screen - connecting for room list');
-          const host = window.location.hostname;
-          const ws = new WebSocket(`ws://${host}:8080`);
-          
-          ws.onopen = () => {
-            console.log('Connected to server for room list');
-            ws.send(JSON.stringify({ type: 'getRooms' }));
-          };
+// REPLACE THE useEffect for screen === 'multiplayer' (around line 829-859)
+useEffect(() => {
+  if (screen === 'multiplayer') {
+    console.log('Multiplayer screen - connecting for room list');
+    
+    // Use a SEPARATE WebSocket for room list - don't use WebSocketManager
+    const host = window.location.hostname;
+    const roomListWs = new WebSocket(`ws://${host}:8080`);
+    
+    roomListWs.onopen = () => {
+      console.log('Room list WebSocket connected');
+      roomListWs.send(JSON.stringify({ type: 'getRooms' }));
+    };
 
-          ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.type === 'roomList') {
-              console.log('Received room list:', data.rooms);
-              setAvailableRooms(data.rooms.filter(room => !room.isFull));
-            }
-          };
+    roomListWs.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'roomList') {
+        console.log('Received room list:', data.rooms);
+        setAvailableRooms(data.rooms.filter(room => !room.isFull));
+      }
+    };
 
-          ws.onerror = (error) => {
-            console.error('Room list WebSocket error:', error);
-          };
+    roomListWs.onerror = (error) => {
+      console.error('Room list WebSocket error:', error);
+    };
 
-          const interval = setInterval(() => {
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: 'getRooms' }));
-            }
-          }, 2000);
+    const interval = setInterval(() => {
+      if (roomListWs.readyState === WebSocket.OPEN) {
+        roomListWs.send(JSON.stringify({ type: 'getRooms' }));
+      }
+    }, 2000);
 
-          return () => {
-            clearInterval(interval);
-            ws.close();
-          };
-        }
-      }, [screen]);
+    return () => {
+      console.log('Closing room list WebSocket');
+      clearInterval(interval);
+      roomListWs.close();
+    };
+  }
+}, [screen]);
 
-      useEffect(() => {
-        if (screen === 'room' && roomId) {
-          console.log('Setting up WebSocket listeners for room:', roomId);
-          
-          WebSocketManager.on('roomJoined', (data) => {
-            console.log('Room joined event received:', data);
-            setPlayerId(data.playerId);
-            setPlayers(data.players);
-            setConnectionStatus('connected');
-            const readyCount = data.players.filter(p => p !== null && p !== undefined).length;
-            setIsRoomReady(readyCount === 2);
-            console.log('Players after join:', data.players, 'Ready:', readyCount === 2);
-          });
+// COMPLETE REPLACEMENT FOR THE useEffect STARTING AT LINE ~387
+// This effect handles all WebSocket events when in the room screen
+useEffect(() => {
+  if (screen === 'room' && roomId) {
+    console.log('=== INITIALIZING ROOM WEBSOCKET ===');
+    console.log('Room ID:', roomId);
+    
+    WebSocketManager.disconnect();
 
-          WebSocketManager.on('playerJoined', (data) => {
-            console.log('Player joined event received:', data);
-            setPlayers(data.players);
-            const readyCount = data.players.filter(p => p !== null && p !== undefined).length;
-            setIsRoomReady(readyCount === 2);
-            console.log('Players after player joined:', data.players, 'Ready:', readyCount === 2);
-          });
+    // Create handlers that will use the LATEST state values
+    const handleRoomJoined = (data) => {
+      console.log('=== handleRoomJoined TRIGGERED ===');
+      console.log('Received data:', JSON.stringify(data));
+      console.log('Setting playerId to:', data.playerId);
+      
+      const myId = data.playerId;
+      
+      // CRITICAL FIX: Set both ref AND state immediately
+      playerIdRef.current = myId;
+      setPlayerId(myId);
+      
+      console.log('PlayerIdRef.current after setting:', playerIdRef.current);
+      
+      const normalizedPlayers = [null, null];
+      data.players.forEach(p => {
+        if (p === 1) normalizedPlayers[0] = 1;
+        if (p === 2) normalizedPlayers[1] = 2;
+      });
+      setPlayers(normalizedPlayers);
+      setConnectionStatus('connected');
+      
+      const myReady = data.readyStates ? data.readyStates[myId] || false : false;
+      const opponentId = myId === 1 ? 2 : 1;
+      const oppReady = data.readyStates ? data.readyStates[opponentId] || false : false;
+      
+      console.log('Setting ready states - My:', myReady, 'Opponent:', oppReady);
+      
+      setMyReadyState(myReady);
+      setOpponentReadyState(oppReady);
+      setIsRoomReady(myReady && oppReady);
+    };
 
-          WebSocketManager.on('gameStart', (data) => {
-            console.log('Game starting:', data);
-            setMsg('Deploy Your Forces');
-          });
+    const handlePlayerJoined = (data) => {
+      console.log('=== handlePlayerJoined TRIGGERED ===');
+      console.log('Current playerIdRef.current:', playerIdRef.current);
+      console.log('Received data:', JSON.stringify(data));
+      
+      const normalizedPlayers = [null, null];
+      data.players.forEach(p => {
+        if (p === 1) normalizedPlayers[0] = 1;
+        if (p === 2) normalizedPlayers[1] = 2;
+      });
+      setPlayers(normalizedPlayers);
+      
+      // FIX: Get current playerId from ref
+      const currentPlayerId = playerIdRef.current;
+      console.log('Using playerId from ref:', currentPlayerId);
+      
+      if (data.readyStates && currentPlayerId) {
+        const myReady = data.readyStates[currentPlayerId] || false;
+        const opponentId = currentPlayerId === 1 ? 2 : 1;
+        const oppReady = data.readyStates[opponentId] || false;
+        
+        console.log('Updating ready states - My:', myReady, 'Opponent:', oppReady);
+        
+        setMyReadyState(myReady);
+        setOpponentReadyState(oppReady);
+        setIsRoomReady(myReady && oppReady);
+      } else {
+        console.warn('Cannot update ready states - playerId not set or no readyStates data');
+      }
+    };
 
-          WebSocketManager.on('setupComplete', (data) => {
-            console.log('Setup complete from player:', data.playerId);
-            if (data.playerId !== playerId) {
-              setOpponentBoard(data.board);
-            }
-          });
+const handlePlayerReady = (data) => {
+  console.log('=== playerReady EVENT RECEIVED ===');
+  console.log('Full data:', JSON.stringify(data));
+  
+  const currentPlayerId = playerIdRef.current;
+  
+  if (!currentPlayerId) {
+    console.error('ERROR: No playerId set!');
+    return;
+  }
+  
+  if (data.readyStates) {
+    const opponentId = currentPlayerId === 1 ? 2 : 1;
+    const myReady = data.readyStates[currentPlayerId] === true;
+    const oppReady = data.readyStates[opponentId] === true;
+    
+    console.log(`Updating states - My(${currentPlayerId}): ${myReady}, Opp(${opponentId}): ${oppReady}, AllReady: ${data.allReady}`);
+    
+    setMyReadyState(myReady);
+    setOpponentReadyState(oppReady);
+    setIsRoomReady(data.allReady === true);
+  }
+};
+    const handleGameStart = (data) => {
+      console.log('=== handleGameStart TRIGGERED ===');
+      console.log('Game starting with data:', JSON.stringify(data));
+      setMsg('Deploy Your Forces');
+    };
 
-          WebSocketManager.on('move', (data) => {
-            if (data.playerId !== playerId) {
-              setBoard(data.board);
-              setTurn(data.turn);
-              setLastMove(data.lastMove);
-              if (data.battleResult) {
-                setBattleResult(data.battleResult);
-                setShowBattleReport(true);
+    const handleOpponentDeploymentUpdate = (data) => {
+      console.log('=== handleOpponentDeploymentUpdate TRIGGERED ===');
+      const currentPlayerId = playerIdRef.current;
+      console.log('Current playerId:', currentPlayerId);
+      console.log('Opponent pieces placed:', data.piecesPlaced);
+      
+      setOpponentPiecesPlaced(data.piecesPlaced);
+      
+      if (data.board && currentPlayerId) {
+        setBoard(prevBoard => {
+          const mergedBoard = prevBoard.map((row, r) => 
+            row.map((cell, c) => {
+              if (data.board[r][c] && data.board[r][c].p !== currentPlayerId) {
+                return data.board[r][c];
               }
-            }
-          });
+              return cell;
+            })
+          );
+          return mergedBoard;
+        });
+      }
+    };
 
-          WebSocketManager.on('gameEnd', (data) => {
-            setMsg(data.message);
-            setPhase('ended');
-          });
+    const handleOpponentSetupComplete = (data) => {
+      console.log('=== handleOpponentSetupComplete TRIGGERED ===');
+      const currentPlayerId = playerIdRef.current;
+      console.log('Current playerId:', currentPlayerId, 'Setup complete playerId:', data.playerId);
+      
+      if (data.playerId !== currentPlayerId) {
+        setMsg('Opponent ready! Finish your deployment.');
+      }
+    };
 
-          return () => {
-            console.log('Cleaning up WebSocket listeners');
-          };
+    const handleBothPlayersReady = (data) => {
+      console.log('=== handleBothPlayersReady TRIGGERED ===');
+      const currentPlayerId = playerIdRef.current;
+      console.log('Both players ready, starting game. My playerId:', currentPlayerId);
+      
+      setPhase('playing');
+      setTurn(1);
+      setMsg(currentPlayerId === 1 ? 'Your Turn' : 'Opponent Turn');
+      setOpponentPiecesPlaced(0);
+    };
+
+    const handleMove = (data) => {
+      console.log('=== handleMove TRIGGERED ===');
+      const currentPlayerId = playerIdRef.current;
+      console.log('Move by player:', data.playerId, 'My playerId:', currentPlayerId);
+      
+      if (data.playerId !== currentPlayerId) {
+        setBoard(data.board);
+        setTurn(data.turn);
+        setLastMove(data.lastMove);
+        setDefeated(data.defeated);
+        
+        if (data.turn === currentPlayerId) {
+          setMsg('Your Turn');
+        } else {
+          setMsg('Opponent Turn');
         }
-      }, [screen, roomId]);
+        
+        if (data.battleResult) {
+          setBattleResult(data.battleResult);
+          setShowBattleReport(true);
+        }
+      }
+    };
 
-      const resetGame = useCallback(() => {
-        setScreen('home');
-        setBoard(GameLogic.initBoard());
-        setPhase('setup');
-        setMode(null);
-        setMultiplayerMode(null);
-        setMsg('Choose Mode');
-        setInventory({});
+    const handleGameEnd = (data) => {
+      console.log('=== handleGameEnd TRIGGERED ===');
+      console.log('Game ended:', JSON.stringify(data));
+      setMsg(data.message);
+      setPhase('ended');
+    };
+    console.log('Registering all WebSocket handlers...');
+    WebSocketManager.on('roomJoined', handleRoomJoined);
+    WebSocketManager.on('playerJoined', handlePlayerJoined);
+    WebSocketManager.on('playerReady', handlePlayerReady);  // THIS IS CRITICAL
+    WebSocketManager.on('gameStart', handleGameStart);
+    WebSocketManager.on('opponentDeploymentUpdate', handleOpponentDeploymentUpdate);
+    WebSocketManager.on('opponentSetupComplete', handleOpponentSetupComplete);
+    WebSocketManager.on('bothPlayersReady', handleBothPlayersReady);
+    WebSocketManager.on('move', handleMove);
+    WebSocketManager.on('gameEnd', handleGameEnd);
+    
+    console.log('All handlers registered. Callbacks:', Object.keys(WebSocketManager.callbacks));
+    
+    // NOW connect after handlers are registered
+    console.log('Connecting to WebSocket for room:', roomId);
+    WebSocketManager.connect(roomId, null);
+ return () => {
+      console.log('=== CLEANING UP ROOM WEBSOCKET ===');
+      WebSocketManager.disconnect();
+    };
+  }
+}, [screen, roomId]);
+
+  const resetGame = useCallback(() => {
+    setScreen('home');
+    setBoard(GameLogic.initBoard());
+    setPhase('setup');
+    setMode(null);
+    setMultiplayerMode(null);
+    setMsg('Choose Mode');
+    setInventory({});
+    setSel(null);
+    setMoves([]);
+    setShowPicker(null);
+    setShowTurnLock(false);
+    setDefeated({ 1: [], 2: [] });
+    setBattleResult(null);
+    setLastMove(null);
+    setShowingBattleForPlayer(null);
+    setShowBattleReport(false);
+    setRoomId('');
+    setPlayerId(null);
+    setPlayers([null, null]);
+    setIsRoomReady(false);
+    setMyReadyState(false);
+    setOpponentReadyState(false);
+    WebSocketManager.disconnect();
+  }, []);
+
+  const startSetup = (m, mp = null) => {
+    setMode(m);
+    setMultiplayerMode(mp);
+    setBoard(GameLogic.initBoard());
+    const inv = {};
+    RANKS.forEach(({ r, count }) => { inv[r] = count; });
+    setInventory(inv);
+    setSetupPlayer(1);
+    setPhase('setup');
+    setMsg('Deploy Your Forces');
+    setScreen('game');
+  };
+
+  const finishSetup = () => {
+    const totalPieces = Object.values(inventory).reduce((sum, count) => sum + count, 0);
+    if (totalPieces > 0) {
+      setMsg('Deploy All Units!');
+      return;
+    }
+
+    if (multiplayerMode === 'online') {
+      console.log('Sending setup complete for player', playerId);
+      WebSocketManager.send({
+        type: 'setupComplete',
+        roomId,
+        playerId,
+        board
+      });
+      setMsg('Waiting for opponent...');
+    } else if (setupPlayer === 1 && mode === '2player' && multiplayerMode === 'local') {
+      setShowTurnLock(true);
+      setPausePhase(true);
+    } else if (setupPlayer === 1 && mode === 'ai') {
+      const nb = GameLogic.autoSetup(board, 2);
+      setBoard(nb);
+      setPhase('playing');
+      setTurn(1);
+      setMsg('Engage the Enemy');
+    } else {
+      setPhase('playing');
+      setTurn(1);
+      setShowTurnLock(true);
+      setPausePhase(true);
+    }
+  };
+
+  const confirmTurn = () => {
+    if (showBattleReport) {
+      setShowBattleReport(false);
+      
+      if (showingBattleForPlayer && turn === showingBattleForPlayer && showingBattleForPlayer === battleResult.player) {
+        const nextTurn = turn === 1 ? 2 : 1;
+        setTurn(nextTurn);
+        setShowingBattleForPlayer(nextTurn);
+        setShowTurnLock(true);
+      } else if (showingBattleForPlayer && turn === showingBattleForPlayer && showingBattleForPlayer !== battleResult.player) {
+        setShowingBattleForPlayer(null);
+        setBattleResult(null);
+        setShowTurnLock(false);
+      }
+      return;
+    }
+    
+    if (pausePhase && setupPlayer === 1 && mode === '2player' && multiplayerMode === 'local') {
+      setSetupPlayer(2);
+      const inv = {};
+      RANKS.forEach(({ r, count }) => { inv[r] = count; });
+      setInventory(inv);
+      setMsg('Deploy Your Forces');
+      setShowTurnLock(false);
+      setPausePhase(false);
+    } else if (pausePhase && phase === 'setup') {
+      setPhase('playing');
+      setTurn(1);
+      setMsg('Imperium Commander 1');
+      setShowTurnLock(false);
+      setPausePhase(false);
+    } else if (battleResult && showingBattleForPlayer !== null) {
+      setShowTurnLock(false);
+      setShowBattleReport(true);
+    } else {
+      setShowTurnLock(false);
+    }
+  };
+
+  const placeOnBoard = (r, c, rank) => {
+    if (board[r][c]) return;
+    const nb = board.map(row => [...row]);
+    const currentPlayer = multiplayerMode === 'online' ? playerId : setupPlayer;
+    nb[r][c] = { r: rank, p: currentPlayer, id: currentPlayer * 100 + Math.random() };
+    setBoard(nb);
+    setInventory({ ...inventory, [rank]: inventory[rank] - 1 });
+    setShowPicker(null);
+    
+    if (multiplayerMode === 'online') {
+      const piecesPlaced = nb.flat().filter(cell => cell?.p === playerId).length;
+      WebSocketManager.send({
+        type: 'deploymentUpdate',
+        roomId,
+        playerId,
+        piecesPlaced,
+        board: nb
+      });
+    }
+  };
+
+  const removeFromBoard = (r, c) => {
+    const piece = board[r][c];
+    const currentPlayer = multiplayerMode === 'online' ? playerId : setupPlayer;
+    if (!piece || piece.p !== currentPlayer) return;
+    const nb = board.map(row => [...row]);
+    nb[r][c] = null;
+    setBoard(nb);
+    setInventory({ ...inventory, [piece.r]: inventory[piece.r] + 1 });
+    
+    if (multiplayerMode === 'online') {
+      const piecesPlaced = nb.flat().filter(cell => cell?.p === playerId).length;
+      WebSocketManager.send({
+        type: 'deploymentUpdate',
+        roomId,
+        playerId,
+        piecesPlaced,
+        board: nb
+      });
+    }
+  };
+
+  const handleSetupClick = (r, c) => {
+    const currentPlayer = multiplayerMode === 'online' ? playerId : setupPlayer;
+    const allowedRows = currentPlayer === 1 ? [7, 6, 5] : [0, 1, 2];
+    if (!allowedRows.includes(r)) return;
+    
+    if (board[r][c]) {
+      removeFromBoard(r, c);
+    } else {
+      setShowPicker([r, c]);
+    }
+  };
+
+  const handlePlayClick = (r, c) => {
+    if (mode === 'ai' && turn !== 1) return;
+    if (multiplayerMode === 'online' && turn !== playerId) return;
+    
+    if (!sel) {
+      if (board[r][c]?.p === turn) {
+        setSel([r, c]);
+        setMoves(GameLogic.validMoves(board, r, c));
+      }
+    } else {
+      const [sr, sc] = sel;
+      const validMove = moves.some(([mr, mc]) => mr === r && mc === c);
+      
+      if (validMove) {
+        setLastMove(null);
+        
+        const nb = board.map(row => [...row]);
+        const attacker = nb[sr][sc];
+        const defender = nb[r][c];
+        const newDefeated = { ...defeated };
+        
+        if (defender) {
+          const res = GameLogic.battle(attacker, defender);
+          
+          if (res === 'win') {
+            nb[r][c] = attacker;
+            nb[sr][sc] = null;
+            newDefeated[defender.p] = [...newDefeated[defender.p], defender.r];
+            setBattleResult({ attacker: attacker.r, defender: defender.r, result: 'win', player: turn });
+            
+            if (defender.r === 'FLAG') {
+              setMsg(`Victory - Commander ${turn}!`);
+              setBoard(nb);
+              setMoves([]);
+              setSel(null);
+              setDefeated(newDefeated);
+              setPhase('ended');
+              if (multiplayerMode === 'online') {
+                WebSocketManager.send({
+                  type: 'gameEnd',
+                  roomId,
+                  winner: turn,
+                  message: `Victory - Commander ${turn}!`
+                });
+              }
+              return;
+            }
+          } else if (res === 'lose') {
+            nb[sr][sc] = null;
+            newDefeated[attacker.p] = [...newDefeated[attacker.p], attacker.r];
+            setBattleResult({ attacker: attacker.r, defender: defender.r, result: 'lose', player: turn });
+            
+            if (attacker.r === 'FLAG') {
+              const winner = turn === 1 ? 2 : 1;
+              setMsg(`Victory - Commander ${winner}!`);
+              setBoard(nb);
+              setMoves([]);
+              setSel(null);
+              setDefeated(newDefeated);
+              setPhase('ended');
+              if (multiplayerMode === 'online') {
+                WebSocketManager.send({
+                  type: 'gameEnd',
+                  roomId,
+                  winner,
+                  message: `Victory - Commander ${winner}!`
+                });
+              }
+              return;
+            }
+          } else {
+            nb[r][c] = null;
+            nb[sr][sc] = null;
+            newDefeated[attacker.p] = [...newDefeated[attacker.p], attacker.r];
+            newDefeated[defender.p] = [...newDefeated[defender.p], defender.r];
+            setBattleResult({ attacker: attacker.r, defender: defender.r, result: 'draw', player: turn });
+          }
+          setDefeated(newDefeated);
+        } else {
+          nb[r][c] = attacker;
+          nb[sr][sc] = null;
+        }
+        
+        setBoard(nb);
         setSel(null);
         setMoves([]);
-        setShowPicker(null);
-        setShowTurnLock(false);
-        setDefeated({ 1: [], 2: [] });
-        setBattleResult(null);
-        setLastMove(null);
-        setShowingBattleForPlayer(null);
-        setShowBattleReport(false);
-        setRoomId('');
-        setPlayerId(null);
-        setPlayers([null, null]);
-        setIsRoomReady(false);
-        WebSocketManager.disconnect();
-      }, []);
-
-      const startSetup = (m, mp = null) => {
-        setMode(m);
-        setMultiplayerMode(mp);
-        setBoard(GameLogic.initBoard());
-        const inv = {};
-        RANKS.forEach(({ r, count }) => { inv[r] = count; });
-        setInventory(inv);
-        setSetupPlayer(1);
-        setPhase('setup');
-        setMsg('Deploy Your Forces');
-        setScreen('game');
-      };
-
-      const finishSetup = () => {
-        const totalPieces = Object.values(inventory).reduce((sum, count) => sum + count, 0);
-        if (totalPieces > 0) {
-          setMsg('Deploy All Units!');
-          return;
-        }
 
         if (multiplayerMode === 'online') {
           WebSocketManager.send({
-            type: 'setupComplete',
+            type: 'move',
             roomId,
             playerId,
-            board
+            board: nb,
+            turn: turn === 1 ? 2 : 1,
+            lastMove: { from: [sr, sc], to: [r, c], turn },
+            battleResult: defender ? battleResult : null,
+            defeated: newDefeated
           });
-          setPhase('playing');
-          setTurn(1);
-          setMsg('Waiting for opponent...');
-        } else if (setupPlayer === 1 && mode === '2player' && multiplayerMode === 'local') {
-          setShowTurnLock(true);
-          setPausePhase(true);
-        } else if (setupPlayer === 1 && mode === 'ai') {
-          const nb = GameLogic.autoSetup(board, 2);
-          setBoard(nb);
-          setPhase('playing');
-          setTurn(1);
-          setMsg('Engage the Enemy');
-        } else {
-          setPhase('playing');
-          setTurn(1);
-          setShowTurnLock(true);
-          setPausePhase(true);
-        }
-      };
-
-      const confirmTurn = () => {
-        if (showBattleReport) {
-          setShowBattleReport(false);
-          
-          if (showingBattleForPlayer && turn === showingBattleForPlayer && showingBattleForPlayer === battleResult.player) {
-            const nextTurn = turn === 1 ? 2 : 1;
-            setTurn(nextTurn);
-            setShowingBattleForPlayer(nextTurn);
-            setShowTurnLock(true);
-          } else if (showingBattleForPlayer && turn === showingBattleForPlayer && showingBattleForPlayer !== battleResult.player) {
-            setShowingBattleForPlayer(null);
-            setBattleResult(null);
-            setShowTurnLock(false);
-          }
-          return;
-        }
-        
-        if (pausePhase && setupPlayer === 1 && mode === '2player' && multiplayerMode === 'local') {
-          setSetupPlayer(2);
-          const inv = {};
-          RANKS.forEach(({ r, count }) => { inv[r] = count; });
-          setInventory(inv);
-          setMsg('Deploy Your Forces');
-          setShowTurnLock(false);
-          setPausePhase(false);
-        } else if (pausePhase && phase === 'setup') {
-          setPhase('playing');
-          setTurn(1);
-          setMsg('Imperium Commander 1');
-          setShowTurnLock(false);
-          setPausePhase(false);
-        } else if (battleResult && showingBattleForPlayer !== null) {
-          setShowTurnLock(false);
-          setShowBattleReport(true);
-        } else {
-          setShowTurnLock(false);
-        }
-      };
-
-      const placeOnBoard = (r, c, rank) => {
-        if (board[r][c]) return;
-        const nb = board.map(row => [...row]);
-        nb[r][c] = { r: rank, p: setupPlayer, id: setupPlayer * 100 + Math.random() };
-        setBoard(nb);
-        setInventory({ ...inventory, [rank]: inventory[rank] - 1 });
-        setShowPicker(null);
-      };
-
-      const removeFromBoard = (r, c) => {
-        const piece = board[r][c];
-        if (!piece || piece.p !== setupPlayer) return;
-        const nb = board.map(row => [...row]);
-        nb[r][c] = null;
-        setBoard(nb);
-        setInventory({ ...inventory, [piece.r]: inventory[piece.r] + 1 });
-      };
-
-      const handleSetupClick = (r, c) => {
-        const allowedRows = setupPlayer === 1 ? [7, 6, 5] : [0, 1, 2];
-        if (!allowedRows.includes(r)) return;
-        
-        if (board[r][c]) {
-          removeFromBoard(r, c);
-        } else {
-          setShowPicker([r, c]);
-        }
-      };
-
-      const handlePlayClick = (r, c) => {
-        if (mode === 'ai' && turn !== 1) return;
-        if (multiplayerMode === 'online' && turn !== playerId) return;
-        
-        if (!sel) {
-          if (board[r][c]?.p === turn) {
-            setSel([r, c]);
-            setMoves(GameLogic.validMoves(board, r, c));
-          }
-        } else {
-          const [sr, sc] = sel;
-          const validMove = moves.some(([mr, mc]) => mr === r && mc === c);
-          
-          if (validMove) {
-            setLastMove(null);
-            
-            const nb = board.map(row => [...row]);
-            const attacker = nb[sr][sc];
-            const defender = nb[r][c];
-            const newDefeated = { ...defeated };
-            
-            if (defender) {
-              const res = GameLogic.battle(attacker, defender);
-              
-              if (res === 'win') {
-                nb[r][c] = attacker;
-                nb[sr][sc] = null;
-                newDefeated[defender.p] = [...newDefeated[defender.p], defender.r];
-                setBattleResult({ attacker: attacker.r, defender: defender.r, result: 'win', player: turn });
-                
-                if (defender.r === 'FLAG') {
-                  setMsg(`Victory - Commander ${turn}!`);
-                  setBoard(nb);
-                  setMoves([]);
-                  setSel(null);
-                  setDefeated(newDefeated);
-                  setPhase('ended');
-                  if (multiplayerMode === 'online') {
-                    WebSocketManager.send({
-                      type: 'gameEnd',
-                      roomId,
-                      winner: turn,
-                      message: `Victory - Commander ${turn}!`
-                    });
-                  }
-                  return;
-                }
-              } else if (res === 'lose') {
-                nb[sr][sc] = null;
-                newDefeated[attacker.p] = [...newDefeated[attacker.p], attacker.r];
-                setBattleResult({ attacker: attacker.r, defender: defender.r, result: 'lose', player: turn });
-                
-                if (attacker.r === 'FLAG') {
-                  const winner = turn === 1 ? 2 : 1;
-                  setMsg(`Victory - Commander ${winner}!`);
-                  setBoard(nb);
-                  setMoves([]);
-                  setSel(null);
-                  setDefeated(newDefeated);
-                  setPhase('ended');
-                  if (multiplayerMode === 'online') {
-                    WebSocketManager.send({
-                      type: 'gameEnd',
-                      roomId,
-                      winner,
-                      message: `Victory - Commander ${winner}!`
-                    });
-                  }
-                  return;
-                }
-              } else {
-                nb[r][c] = null;
-                nb[sr][sc] = null;
-                newDefeated[attacker.p] = [...newDefeated[attacker.p], attacker.r];
-                newDefeated[defender.p] = [...newDefeated[defender.p], defender.r];
-                setBattleResult({ attacker: attacker.r, defender: defender.r, result: 'draw', player: turn });
-              }
-              setDefeated(newDefeated);
-            } else {
-              nb[r][c] = attacker;
-              nb[sr][sc] = null;
+          setTurn(turn === 1 ? 2 : 1);
+        } else if (mode === 'ai') {
+          setTurn(2);
+          setMsg('Enemy Calculating...');
+          const currentDefeated = { ...newDefeated };
+          setTimeout(() => {
+            const aiM = GameLogic.aiMove(nb);
+            if (!aiM) { 
+              setMsg('Imperial Victory!'); 
+              setTurn(1);
+              return; 
             }
             
-            setBoard(nb);
-            setSel(null);
-            setMoves([]);
-
-            if (multiplayerMode === 'online') {
-              WebSocketManager.send({
-                type: 'move',
-                roomId,
-                playerId,
-                board: nb,
-                turn: turn === 1 ? 2 : 1,
-                lastMove: { from: [sr, sc], to: [r, c], turn },
-                battleResult: defender ? battleResult : null,
-                defeated: newDefeated
-              });
-              setTurn(turn === 1 ? 2 : 1);
-            } else if (mode === 'ai') {
-              setTurn(2);
-              setMsg('Enemy Calculating...');
-              const currentDefeated = { ...newDefeated };
-              setTimeout(() => {
-                const aiM = GameLogic.aiMove(nb);
-                if (!aiM) { 
-                  setMsg('Imperial Victory!'); 
-                  setTurn(1);
+            const nb2 = nb.map(row => [...row]);
+            const [ar, ac] = aiM.from;
+            const [tr, tc] = aiM.to;
+            const aiA = nb2[ar][ac];
+            
+            if (!aiA) {
+              setTurn(1);
+              setMsg('Engage the Enemy');
+              return;
+            }
+            
+            const def = nb2[tr][tc];
+            const newDefeated2 = { ...currentDefeated };
+            
+            if (def) {
+              const res = GameLogic.battle(aiA, def);
+              if (res === 'win') {
+                nb2[tr][tc] = aiA;
+                nb2[ar][ac] = null;
+                newDefeated2[def.p] = [...newDefeated2[def.p], def.r];
+                if (def.r === 'FLAG') { 
+                  setMsg('Defeat - Enemy Prevails'); 
+                  setBoard(nb2); 
+                  setDefeated(newDefeated2); 
+                  setPhase('ended');
                   return; 
                 }
-                
-                const nb2 = nb.map(row => [...row]);
-                const [ar, ac] = aiM.from;
-                const [tr, tc] = aiM.to;
-                const aiA = nb2[ar][ac];
-                
-                if (!aiA) {
-                  setTurn(1);
-                  setMsg('Engage the Enemy');
-                  return;
-                }
-                
-                const def = nb2[tr][tc];
-                const newDefeated2 = { ...currentDefeated };
-                
-                if (def) {
-                  const res = GameLogic.battle(aiA, def);
-                  if (res === 'win') {
-                    nb2[tr][tc] = aiA;
-                    nb2[ar][ac] = null;
-                    newDefeated2[def.p] = [...newDefeated2[def.p], def.r];
-                    if (def.r === 'FLAG') { 
-                      setMsg('Defeat - Enemy Prevails'); 
-                      setBoard(nb2); 
-                      setDefeated(newDefeated2); 
-                      setPhase('ended');
-                      return; 
-                    }
-                  } else if (res === 'lose') {
-                    nb2[ar][ac] = null;
-                    newDefeated2[aiA.p] = [...newDefeated2[aiA.p], aiA.r];
-                  } else {
-                    nb2[tr][tc] = null;
-                    nb2[ar][ac] = null;
-                    newDefeated2[aiA.p] = [...newDefeated2[aiA.p], aiA.r];
-                    newDefeated2[def.p] = [...newDefeated2[def.p], def.r];
-                  }
-                } else {
-                  nb2[tr][tc] = aiA;
-                  nb2[ar][ac] = null;
-                }
-                
-                setBoard(nb2);
-                setDefeated(newDefeated2);
-                setLastMove({ from: [ar, ac], to: [tr, tc], turn: 2 });
-                setTurn(1);
-                setMsg('Engage the Enemy');
-              }, 300);
-            } else if (multiplayerMode === 'local') {
-              setLastMove({ from: [sr, sc], to: [r, c], turn: turn });
-              
-              if (defender) {
-                setShowBattleReport(true);
-                setShowingBattleForPlayer(turn);
+              } else if (res === 'lose') {
+                nb2[ar][ac] = null;
+                newDefeated2[aiA.p] = [...newDefeated2[aiA.p], aiA.r];
               } else {
-                const nextTurn = turn === 1 ? 2 : 1;
-                setTurn(nextTurn);
-                setShowTurnLock(true);
+                nb2[tr][tc] = null;
+                nb2[ar][ac] = null;
+                newDefeated2[aiA.p] = [...newDefeated2[aiA.p], aiA.r];
+                newDefeated2[def.p] = [...newDefeated2[def.p], def.r];
               }
+            } else {
+              nb2[tr][tc] = aiA;
+              nb2[ar][ac] = null;
             }
+            
+            setBoard(nb2);
+            setDefeated(newDefeated2);
+            setLastMove({ from: [ar, ac], to: [tr, tc], turn: 2 });
+            setTurn(1);
+            setMsg('Engage the Enemy');
+          }, 300);
+        } else if (multiplayerMode === 'local') {
+          setLastMove({ from: [sr, sc], to: [r, c], turn: turn });
+          
+          if (defender) {
+            setShowBattleReport(true);
+            setShowingBattleForPlayer(turn);
           } else {
-            setSel(null);
-            setMoves([]);
+            const nextTurn = turn === 1 ? 2 : 1;
+            setTurn(nextTurn);
+            setShowTurnLock(true);
           }
         }
-      };
+      } else {
+        setSel(null);
+        setMoves([]);
+      }
+    }
+  };
 
-      const handleCellClick = (r, c) => {
-        if (phase === 'setup') {
-          handleSetupClick(r, c);
-        } else if (phase === 'playing') {
-          handlePlayClick(r, c);
-        }
-      };
+  const handleCellClick = (r, c) => {
+    if (phase === 'setup') {
+      handleSetupClick(r, c);
+    } else if (phase === 'playing') {
+      handlePlayClick(r, c);
+    }
+  };
 
-      const handleAutoSetup = () => {
-        const freshBoard = setupPlayer === 1 ? board : board;
-        const nb = GameLogic.autoSetup(freshBoard, setupPlayer);
-        setBoard(nb);
-        const inv = {};
-        RANKS.forEach(({ r }) => { inv[r] = 0; });
-        setInventory(inv);
-      };
+  const handleAutoSetup = () => {
+    const currentPlayer = multiplayerMode === 'online' ? playerId : setupPlayer;
+    const freshBoard = board.map(row => [...row]);
+    const nb = GameLogic.autoSetup(freshBoard, currentPlayer);
+    setBoard(nb);
+    const inv = {};
+    RANKS.forEach(({ r }) => { inv[r] = 0; });
+    setInventory(inv);
+    
+    if (multiplayerMode === 'online') {
+      WebSocketManager.send({
+        type: 'deploymentUpdate',
+        roomId,
+        playerId,
+        piecesPlaced: 21,
+        board: nb
+      });
+    }
+  };
+const createRoom = () => {
+  const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+  setRoomId(newRoomId);
+  setConnectionStatus('connecting');
+  setPlayers([null, null]);
+  setIsRoomReady(false);
+  setMyReadyState(false);
+  setOpponentReadyState(false);
+  setScreen('room');
+};
 
-      const createRoom = () => {
-        const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-        setRoomId(newRoomId);
-        setConnectionStatus('connecting');
+const joinRoom = (id) => {
+  setRoomId(id);
+  setConnectionStatus('connecting');
+  setPlayers([null, null]);
+  setIsRoomReady(false);
+  setMyReadyState(false);
+  setOpponentReadyState(false);
+  setScreen('room');
+};
+// COMPLETE REPLACEMENT FOR toggleReady FUNCTION (around line ~730)
+const toggleReady = () => {
+  const newReadyState = !myReadyState;
+  const currentPlayerId = playerIdRef.current || playerId; // Fallback to state if ref not set
+  
+  console.log('=== TOGGLE READY CLICKED ===');
+  console.log('Current ready state:', myReadyState);
+  console.log('New ready state:', newReadyState);
+  console.log('PlayerId from ref:', playerIdRef.current);
+  console.log('PlayerId from state:', playerId);
+  console.log('Using playerId:', currentPlayerId);
+  
+  if (!currentPlayerId) {
+    console.error('ERROR: Cannot toggle ready - no playerId set!');
+    return;
+  }
+  
+  setMyReadyState(newReadyState);
+  
+  const message = {
+    type: 'toggleReady',
+    roomId,
+    playerId: currentPlayerId,
+    isReady: newReadyState
+  };
+  
+  console.log('Sending WebSocket message:', message);
+  WebSocketManager.send(message);
+};
+
+  const startOnlineGame = () => {
+    if (!isRoomReady) {
+      console.log('Cannot start game - room not ready');
+      return;
+    }
+    console.log('Starting online game...');
+    WebSocketManager.send({
+      type: 'startGame',
+      roomId
+    });
+    startSetup('2player', 'online');
+  };
+
+  if (screen === 'home') {
+    return <HomeScreen 
+      onModeSelect={(m, mp) => m === 'multiplayer' ? setScreen('multiplayer') : startSetup(m, mp)} 
+      devMode={devMode} 
+      setDevMode={setDevMode} 
+    />;
+  }
+
+  if (screen === 'multiplayer') {
+    return <MultiplayerLobby 
+      onBack={() => setScreen('home')} 
+      onCreateRoom={createRoom}
+      onJoinRoom={joinRoom}
+      roomId={roomId}
+      setRoomId={setRoomId}
+      availableRooms={availableRooms}
+    />;
+  }
+
+  if (screen === 'room') {
+    return <RoomWaiting 
+      roomId={roomId}
+      onLeave={() => { 
+        setScreen('multiplayer'); 
+        setRoomId(''); 
+        setPlayerId(null);
         setPlayers([null, null]);
+        setConnectionStatus('disconnected'); 
+        setMyReadyState(false); 
+        setOpponentReadyState(false); 
         setIsRoomReady(false);
-        console.log('Creating room:', newRoomId);
-        setScreen('room');
-        setTimeout(() => {
-          WebSocketManager.connect(newRoomId, null);
-        }, 100);
-      };
+        WebSocketManager.disconnect(); 
+      }}
+      onStart={startOnlineGame}
+      onToggleReady={toggleReady}
+      players={players}
+      isReady={isRoomReady}
+      myReady={myReadyState}
+      opponentReady={opponentReadyState}
+      playerId={playerId}
+      connectionStatus={connectionStatus}
+    />;
+  }
 
-      const joinRoom = (id) => {
-        setRoomId(id);
-        setConnectionStatus('connecting');
-        setPlayers([null, null]);
-        setIsRoomReady(false);
-        console.log('Joining room:', id);
-        setScreen('room');
-        setTimeout(() => {
-          WebSocketManager.connect(id, null);
-        }, 100);
-      };
-
-      const startOnlineGame = () => {
-        if (!isRoomReady) {
-          console.log('Cannot start game - room not ready');
-          return;
-        }
-        console.log('Starting online game...');
-        WebSocketManager.send({
-          type: 'startGame',
-          roomId
-        });
-        startSetup('2player', 'online');
-      };
-
-      if (screen === 'home') {
-        return <HomeScreen 
-          onModeSelect={(m, mp) => m === 'multiplayer' ? setScreen('multiplayer') : startSetup(m, mp)} 
-          devMode={devMode} 
-          setDevMode={setDevMode} 
-        />;
-      }
-
-      if (screen === 'multiplayer') {
-        return <MultiplayerLobby 
-          onBack={() => setScreen('home')} 
-          onCreateRoom={createRoom}
-          onJoinRoom={joinRoom}
-          roomId={roomId}
-          setRoomId={setRoomId}
-          availableRooms={availableRooms}
-        />;
-      }
-
-      if (screen === 'room') {
-        return <RoomWaiting 
-          roomId={roomId}
-          onLeave={() => { setScreen('multiplayer'); setRoomId(''); setConnectionStatus('disconnected'); WebSocketManager.disconnect(); }}
-          onStart={startOnlineGame}
-          players={players}
-          isReady={isRoomReady}
-          connectionStatus={connectionStatus}
-        />;
-      }
-
-      return (
-        <div className="h-screen w-screen flex flex-col lg:flex-row bg-black overflow-hidden">
-          <div className="order-1 flex-1 flex items-center justify-center p-1 md:p-2 bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 min-h-0">
-            <div className="w-full h-full max-w-[min(98vw,calc(98vh*1.125))] max-h-[min(98vw/1.125,98vh)] lg:max-w-[min(98vw,calc(98vh*1.125))] lg:max-h-[min(98vw/1.125,98vh)] flex flex-col rounded-lg shadow-[0_0_40px_rgba(212,175,55,0.3)] overflow-hidden border-4 border-yellow-700">
-              <GameBoard 
-                board={board}
-                phase={phase}
-                mode={mode}
-                multiplayerMode={multiplayerMode}
-                turn={turn}
-                setupPlayer={setupPlayer}
-                sel={sel}
-                moves={moves}
-                lastMove={lastMove}
-                devMode={devMode}
-                onCellClick={handleCellClick}
-              />
-            </div>
-          </div>
-
-          <Sidebar 
+  return (
+    <div className="h-screen w-screen flex flex-col lg:flex-row bg-black overflow-hidden">
+      <div className="order-1 flex-1 flex items-center justify-center p-1 md:p-2 bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 min-h-0">
+        <div className="w-full h-full max-w-[min(98vw,calc(98vh*1.125))] max-h-[min(98vw/1.125,98vh)] lg:max-w-[min(98vw,calc(98vh*1.125))] lg:max-h-[min(98vw/1.125,98vh)] flex flex-col rounded-lg shadow-[0_0_40px_rgba(212,175,55,0.3)] overflow-hidden border-4 border-yellow-700">
+          <GameBoard 
+            board={board}
             phase={phase}
             mode={mode}
             multiplayerMode={multiplayerMode}
-            msg={msg}
-            roomId={roomId}
-            inventory={inventory}
-            defeated={defeated}
-            setupPlayer={setupPlayer}
             turn={turn}
-            board={board}
-            devMode={devMode}
+            setupPlayer={multiplayerMode === 'online' ? playerId : setupPlayer}
+            sel={sel}
+            moves={moves}
             lastMove={lastMove}
-            onFinishSetup={finishSetup}
-            onAutoSetup={handleAutoSetup}
-            onReset={resetGame}
+            devMode={devMode}
+            playerId={playerId}
+            onCellClick={handleCellClick}
           />
-
-          {showPicker && (
-            <UnitPicker 
-              inventory={inventory}
-              setupPlayer={setupPlayer}
-              onSelect={(rank) => placeOnBoard(showPicker[0], showPicker[1], rank)}
-              onCancel={() => setShowPicker(null)}
-            />
-          )}
-
-          {showBattleReport && battleResult && (
-            <BattleReportModal 
-              battleResult={battleResult}
-              showingBattleForPlayer={showingBattleForPlayer}
-              onContinue={confirmTurn}
-            />
-          )}
-
-          {showTurnLock && (
-            <TurnLockModal 
-              pausePhase={pausePhase}
-              setupPlayer={setupPlayer}
-              mode={mode}
-              multiplayerMode={multiplayerMode}
-              turn={turn}
-              battleResult={battleResult}
-              onConfirm={confirmTurn}
-            />
-          )}
         </div>
-      );
-    }
+      </div>
+
+      <Sidebar 
+        phase={phase}
+        mode={mode}
+        multiplayerMode={multiplayerMode}
+        msg={msg}
+        roomId={roomId}
+        inventory={inventory}
+        defeated={defeated}
+        setupPlayer={setupPlayer}
+        turn={turn}
+        board={board}
+        devMode={devMode}
+        lastMove={lastMove}
+        opponentPiecesPlaced={opponentPiecesPlaced}
+        onFinishSetup={finishSetup}
+        onAutoSetup={handleAutoSetup}
+        onReset={resetGame}
+      />
+
+      {showPicker && (
+        <UnitPicker 
+          inventory={inventory}
+          setupPlayer={multiplayerMode === 'online' ? playerId : setupPlayer}
+          onSelect={(rank) => placeOnBoard(showPicker[0], showPicker[1], rank)}
+          onCancel={() => setShowPicker(null)}
+        />
+      )}
+
+      {showBattleReport && battleResult && (
+        <BattleReportModal 
+          battleResult={battleResult}
+          showingBattleForPlayer={showingBattleForPlayer}
+          onContinue={confirmTurn}
+        />
+      )}
+
+      {showTurnLock && (
+        <TurnLockModal 
+          pausePhase={pausePhase}
+          setupPlayer={setupPlayer}
+          mode={mode}
+          multiplayerMode={multiplayerMode}
+          turn={turn}
+          battleResult={battleResult}
+          onConfirm={confirmTurn}
+        />
+      )}
+    </div>
+  );
+}
     ReactDOM.render(
       <React.StrictMode>
         <Salpakan />
