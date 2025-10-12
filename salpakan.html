@@ -503,6 +503,7 @@ Connection: ${connectionStatus}
           
           const isSelected = sel?.[0] === actualR && sel?.[1] === actualC;
           const isValidMove = moves.some(([mr, mc]) => mr === actualR && mc === actualC);
+          const isOpponentSelected = opponentLastSelected?.[0] === actualR && opponentLastSelected?.[1] === actualC;
           
           let isLastMoveFrom = false;
           let isLastMoveTo = false;
@@ -533,6 +534,7 @@ Connection: ${connectionStatus}
               onClick={() => onCellClick(actualR, actualC)}
               className={`flex items-center justify-center cursor-pointer transition-all ${
                 isSelected ? 'bg-yellow-600 shadow-[inset_0_0_20px_rgba(255,215,0,0.6)]' : 
+                isOpponentSelected ? 'bg-orange-600 shadow-[inset_0_0_20px_rgba(255,165,0,0.6)]' :
                 isValidMove ? 'bg-emerald-700 hover:bg-emerald-600' :
                 (isLastMoveFrom || isLastMoveTo) ? 'bg-red-800 hover:bg-red-700' :
                 'bg-gradient-to-br from-amber-900 to-yellow-900 hover:from-amber-800 hover:to-yellow-800'
@@ -858,7 +860,8 @@ Connection: ${connectionStatus}
   const [opponentBoard, setOpponentBoard] = useState(null);
   const [availableRooms, setAvailableRooms] = useState([]);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
-  const [opponentPiecesPlaced, setOpponentPiecesPlaced] = useState(0);
+const [opponentPiecesPlaced, setOpponentPiecesPlaced] = useState(0);
+const [opponentLastSelected, setOpponentLastSelected] = useState(null);
 
   useEffect(() => {
     console.log('Salpakan game initialized');
@@ -1067,6 +1070,11 @@ const handleGameStart = (data) => {
         setLastMove(data.lastMove);
         setDefeated(data.defeated);
         
+        if (data.lastMove) {
+          setOpponentLastSelected(data.lastMove.from);
+          setTimeout(() => setOpponentLastSelected(null), 2000);
+        }
+        
         if (data.turn === currentPlayerId) {
           setMsg('Your Turn');
         } else {
@@ -1079,7 +1087,6 @@ const handleGameStart = (data) => {
         }
       }
     };
-
     const handleGameEnd = (data) => {
       console.log('=== handleGameEnd TRIGGERED ===');
       console.log('Game ended:', JSON.stringify(data));
@@ -1628,6 +1635,7 @@ const startOnlineGame = () => {
             lastMove={lastMove}
             devMode={devMode}
             playerId={playerId}
+            opponentLastSelected={opponentLastSelected}
             onCellClick={handleCellClick}
           />
         </div>
@@ -1700,6 +1708,7 @@ const startOnlineGame = () => {
             lastMove={lastMove}
             devMode={devMode}
             playerId={playerId}
+            opponentLastSelected={opponentLastSelected}
             onCellClick={handleCellClick}
           />
         </div>

@@ -231,14 +231,18 @@ wss.on('connection', (ws) => {
           break;
         }
         
-        case 'move': {
+       case 'move': {
           const { roomId, playerId, board, turn, lastMove, battleResult, defeated } = data;
           const room = rooms.get(roomId);
+          
           if (!room) return;
+          
           console.log(`Move by Player ${playerId} in room ${roomId}, next turn: ${turn}`);
+          
           room.boards[playerId] = board;
+          
           room.players.forEach(player => {
-            if (player.ws && player.ws.readyState === WebSocket.OPEN) {
+            if (player.ws && player.ws !== ws && player.ws.readyState === WebSocket.OPEN) {
               const playerView = board.map(row => 
                 row.map(cell => {
                   if (cell && cell.p !== player.number) {
