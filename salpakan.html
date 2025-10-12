@@ -16,7 +16,7 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState } = React;
+    const { useState, useEffect, useCallback } = React;
 
     const TILESET_CONFIG = {
       url: 'assets/imperium.svg',
@@ -50,95 +50,145 @@
       '1LT': 6, '2LT': 5, 'SGT': 4, 'PVT': 2, 'SPY': 1, 'FLAG': 0
     };
 
-    const createPieces = (p) => {
-      const pieces = [];
-      let id = 0;
-      RANKS.forEach(({ r, count }) => {
-        for (let i = 0; i < count; i++) {
-          pieces.push({ r, p, id: p * 100 + id++ });
-        }
-      });
-      return pieces;
-    };
-
-    const initBoard = () => Array(8).fill(null).map(() => Array(9).fill(null));
-
-    const autoSetup = (b, p) => {
-      const nb = b.map(row => [...row]);
-      const rows = p === 1 ? [7, 6, 5] : [0, 1, 2];
-      
-      for (const r of rows) {
-        for (let c = 0; c < 9; c++) {
-          nb[r][c] = null;
-        }
-      }
-      
-      const pieces = createPieces(p).sort(() => Math.random() - 0.5);
-      let idx = 0;
-      
-      for (const r of rows) {
-        for (let c = 0; c < 9; c++) {
-          if (idx < pieces.length) {
-            nb[r][c] = pieces[idx++];
+    const GameLogic = {
+      createPieces: (p) => {
+        const pieces = [];
+        let id = 0;
+        RANKS.forEach(({ r, count }) => {
+          for (let i = 0; i < count; i++) {
+            pieces.push({ r, p, id: p * 100 + id++ });
           }
-        }
-      }
-      return nb;
-    };
-
-    const battle = (a, d) => {
-      if (d.r === 'FLAG') return 'win';
-      if (a.r === 'FLAG') return 'lose';
-      if (a.r === d.r) return 'draw';
-      if (a.r === 'SPY' && d.r === 'PVT') return 'lose';
-      if (a.r === 'SPY') return 'win';
-      if (d.r === 'SPY' && a.r === 'PVT') return 'win';
-      if (d.r === 'SPY') return 'lose';
-      return POWER[a.r] > POWER[d.r] ? 'win' : 'lose';
-    };
-
-    const validMoves = (b, r, c) => {
-      const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-      return dirs.map(([dr, dc]) => [r + dr, c + dc])
-        .filter(([nr, nc]) => nr >= 0 && nr < 8 && nc >= 0 && nc < 9 && (!b[nr][nc] || b[nr][nc].p !== b[r][c].p));
-    };
-
-    const aiMove = (b) => {
-      const pieces = [];
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 9; c++) {
-          if (b[r][c]?.p === 2) pieces.push([r, c]);
-        }
-      }
-      
-      if (pieces.length === 0) return null;
-      
-      const moves = [];
-      pieces.forEach(([r, c]) => {
-        const piece = b[r][c];
-        if (!piece) return;
-        
-        const possibleMoves = validMoves(b, r, c);
-        possibleMoves.forEach(to => {
-          let score = Math.random() * 10;
-          const target = b[to[0]][to[1]];
-          
-          if (target) {
-            const result = battle(piece, target);
-            score += result === 'win' ? 50 : result === 'draw' ? 20 : -30;
-          }
-          
-          if (to[0] === 7) score += 30;
-          if (piece.r === 'FLAG') score -= 100;
-          
-          moves.push({ from: [r, c], to, score });
         });
-      });
-      
-      if (moves.length === 0) return null;
-      
-      moves.sort((a, b) => b.score - a.score);
-      return { from: moves[0].from, to: moves[0].to };
+        return pieces;
+      },
+
+      initBoard: () => Array(8).fill(null).map(() => Array(9).fill(null)),
+
+      autoSetup: (b, p) => {
+        const nb = b.map(row => [...row]);
+        const rows = p === 1 ? [7, 6, 5] : [0, 1, 2];
+        
+        for (const r of rows) {
+          for (let c = 0; c < 9; c++) {
+            nb[r][c] = null;
+          }
+        }
+        
+        const pieces = GameLogic.createPieces(p).sort(() => Math.random() - 0.5);
+        let idx = 0;
+        
+        for (const r of rows) {
+          for (let c = 0; c < 9; c++) {
+            if (idx < pieces.length) {
+              nb[r][c] = pieces[idx++];
+            }
+          }
+        }
+        return nb;
+      },
+
+      battle: (a, d) => {
+        if (d.r === 'FLAG') return 'win';
+        if (a.r === 'FLAG') return 'lose';
+        if (a.r === d.r) return 'draw';
+        if (a.r === 'SPY' && d.r === 'PVT') return 'lose';
+        if (a.r === 'SPY') return 'win';
+        if (d.r === 'SPY' && a.r === 'PVT') return 'win';
+        if (d.r === 'SPY') return 'lose';
+        return POWER[a.r] > POWER[d.r] ? 'win' : 'lose';
+      },
+
+      validMoves: (b, r, c) => {
+        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        return dirs.map(([dr, dc]) => [r + dr, c + dc])
+          .filter(([nr, nc]) => nr >= 0 && nr < 8 && nc >= 0 && nc < 9 && (!b[nr][nc] || b[nr][nc].p !== b[r][c].p));
+      },
+
+      aiMove: (b) => {
+        const pieces = [];
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 9; c++) {
+            if (b[r][c]?.p === 2) pieces.push([r, c]);
+          }
+        }
+        
+        if (pieces.length === 0) return null;
+        
+        const moves = [];
+        pieces.forEach(([r, c]) => {
+          const piece = b[r][c];
+          if (!piece) return;
+          
+          const possibleMoves = GameLogic.validMoves(b, r, c);
+          possibleMoves.forEach(to => {
+            let score = Math.random() * 10;
+            const target = b[to[0]][to[1]];
+            
+            if (target) {
+              const result = GameLogic.battle(piece, target);
+              score += result === 'win' ? 50 : result === 'draw' ? 20 : -30;
+            }
+            
+            if (to[0] === 7) score += 30;
+            if (piece.r === 'FLAG') score -= 100;
+            
+            moves.push({ from: [r, c], to, score });
+          });
+        });
+        
+        if (moves.length === 0) return null;
+        
+        moves.sort((a, b) => b.score - a.score);
+        return { from: moves[0].from, to: moves[0].to };
+      }
+    };
+
+    const WebSocketManager = {
+      ws: null,
+      callbacks: {},
+
+      connect: (roomId, playerId) => {
+        const ws = new WebSocket(`ws://localhost:8080`);
+        WebSocketManager.ws = ws;
+
+        ws.onopen = () => {
+          console.log('Connected to server');
+          ws.send(JSON.stringify({ type: 'join', roomId, playerId }));
+        };
+
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          const callback = WebSocketManager.callbacks[data.type];
+          if (callback) callback(data);
+        };
+
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+        };
+
+        ws.onclose = () => {
+          console.log('Disconnected from server');
+        };
+
+        return ws;
+      },
+
+      send: (data) => {
+        if (WebSocketManager.ws && WebSocketManager.ws.readyState === WebSocket.OPEN) {
+          WebSocketManager.ws.send(JSON.stringify(data));
+        }
+      },
+
+      on: (type, callback) => {
+        WebSocketManager.callbacks[type] = callback;
+      },
+
+      disconnect: () => {
+        if (WebSocketManager.ws) {
+          WebSocketManager.ws.close();
+          WebSocketManager.ws = null;
+        }
+      }
     };
 
     function PieceIcon({ rank, player }) {
@@ -174,9 +224,473 @@
       );
     }
 
+    function HomeScreen({ onModeSelect, devMode, setDevMode }) {
+      return (
+        <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
+          <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700 text-center">
+            <div className="text-6xl mb-4">⚔</div>
+            <h2 className="text-4xl font-serif font-black text-yellow-400 mb-6 tracking-wider">IMPERIUM</h2>
+            <p className="text-sm text-yellow-600 mb-8 font-serif italic tracking-widest">SALPAKAN</p>
+            
+            <div className="flex flex-col gap-3">
+              <button onClick={() => onModeSelect('ai')} 
+                className="px-6 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-lg font-serif font-bold rounded border-2 border-yellow-600 hover:from-yellow-600 hover:to-yellow-700 shadow-lg transform hover:scale-105 transition-all">
+                ⚔ VS MACHINE
+              </button>
+              
+              <button onClick={() => onModeSelect('2player', 'local')} 
+                className="px-6 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-lg font-serif font-bold rounded border-2 border-yellow-600 hover:from-yellow-600 hover:to-yellow-700 shadow-lg transform hover:scale-105 transition-all">
+                ⚔ VS LOCAL COMMANDER
+              </button>
+              
+              <button onClick={() => onModeSelect('multiplayer')} 
+                className="px-6 py-3 bg-gradient-to-r from-emerald-700 to-emerald-800 text-black text-lg font-serif font-bold rounded border-2 border-emerald-600 hover:from-yellow-600 hover:to-yellow-700 shadow-lg transform hover:scale-105 transition-all">
+                ⚔ VS NETWORK COMMANDER
+              </button>
+            </div>
+            
+            <button onClick={() => setDevMode(!devMode)} 
+              className="w-full mt-6 px-4 py-2 bg-gradient-to-r from-orange-800 to-orange-900 text-white text-base font-serif font-bold rounded border-2 border-orange-700 hover:from-orange-700 hover:to-orange-800 shadow-lg">
+              👁 OMNISCIENCE: {devMode ? 'ON' : 'OFF'}
+            </button>
+            
+            <p className="text-xs text-yellow-700 mt-4 italic font-serif">
+              Choose your battle
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roomId, setRoomId }) {
+      return (
+        <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
+          <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700">
+            <button onClick={onBack} 
+              className="mb-4 text-yellow-600 hover:text-yellow-400 font-serif text-sm">
+              ← Back
+            </button>
+            
+            <div className="text-center mb-8">
+              <div className="text-5xl mb-3">🌐</div>
+              <h2 className="text-3xl font-serif font-black text-yellow-400 mb-2 tracking-wider">ONLINE BATTLE</h2>
+              <p className="text-xs text-yellow-600 font-serif italic">Connect two devices</p>
+            </div>
+            
+            <div className="flex flex-col gap-4">
+              <button onClick={onCreateRoom} 
+                className="px-6 py-4 bg-gradient-to-r from-emerald-700 to-emerald-800 text-white text-xl font-serif font-bold rounded border-2 border-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg transform hover:scale-105 transition-all">
+                ➕ CREATE ROOM
+              </button>
+              
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-yellow-800"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-zinc-900 text-yellow-600 font-serif">or</span>
+                </div>
+              </div>
+              
+              <div>
+                <input 
+                  type="text" 
+                  placeholder="Enter Room ID"
+                  value={roomId}
+                  onChange={(e) => setRoomId(e.target.value.toUpperCase())}
+                  className="w-full px-4 py-3 bg-black text-yellow-400 border-2 border-yellow-800 rounded font-mono text-lg text-center placeholder-yellow-800 focus:border-yellow-600 focus:outline-none"
+                  maxLength={6}
+                />
+                <button 
+                  onClick={() => roomId.length === 6 && onJoinRoom(roomId)} 
+                  disabled={roomId.length !== 6}
+                  className="w-full mt-2 px-6 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-lg font-serif font-bold rounded border-2 border-yellow-600 hover:from-yellow-600 hover:to-yellow-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                  🚪 JOIN ROOM
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function RoomWaiting({ roomId, onLeave, onStart, players, isReady }) {
+      return (
+        <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
+          <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700 text-center">
+            <button onClick={onLeave} 
+              className="mb-4 text-yellow-600 hover:text-yellow-400 font-serif text-sm">
+              ← Leave Room
+            </button>
+            
+            <div className="text-5xl mb-4">🎮</div>
+            <h2 className="text-3xl font-serif font-black text-yellow-400 mb-4 tracking-wider">ROOM</h2>
+            
+            <div className="bg-black rounded-lg p-6 mb-6 border-2 border-yellow-800">
+              <p className="text-yellow-600 text-sm font-serif mb-2">Room ID</p>
+              <p className="text-yellow-400 text-4xl font-mono font-bold tracking-widest">{roomId}</p>
+              <p className="text-yellow-700 text-xs font-serif italic mt-2">Share this code with your opponent</p>
+            </div>
+            
+            <div className="bg-zinc-800 rounded-lg p-4 mb-6 border-2 border-yellow-900">
+              <p className="text-yellow-500 text-sm font-serif mb-3">Players</p>
+              <div className="space-y-2">
+                {players.map((player, idx) => (
+                  <div key={idx} className={`bg-black rounded px-3 py-2 flex items-center justify-between ${!player ? 'opacity-50' : ''}`}>
+                    <span className={player ? 'text-yellow-400' : 'text-yellow-600'}>{player ? `Commander ${idx + 1}` : `Commander ${idx + 1}`}</span>
+                    <span className={player ? 'text-green-500' : 'text-yellow-700'}>{player ? '✓ Ready' : '⏳ Waiting...'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <button 
+              onClick={onStart}
+              disabled={!isReady}
+              className="w-full px-6 py-3 bg-gradient-to-r from-emerald-700 to-emerald-800 text-white text-lg font-serif font-bold rounded border-2 border-emerald-600 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+              ⚔ START BATTLE
+            </button>
+            
+            <p className="text-xs text-yellow-700 mt-4 italic font-serif">
+              {isReady ? 'Both players ready!' : 'Waiting for opponent to join...'}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    function GameBoard({ board, phase, mode, multiplayerMode, turn, setupPlayer, sel, moves, lastMove, devMode, onCellClick }) {
+      const perspective = phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : setupPlayer;
+      
+      const rows = [];
+      for (let r = 0; r < 8; r++) {
+        const cells = [];
+        for (let c = 0; c < 9; c++) {
+          const actualR = perspective === 2 ? 7 - r : r;
+          const actualC = perspective === 2 ? 8 - c : c;
+          const cell = board[actualR][actualC];
+          
+          const isSelected = sel?.[0] === actualR && sel?.[1] === actualC;
+          const isValidMove = moves.some(([mr, mc]) => mr === actualR && mc === actualC);
+          
+          let isLastMoveFrom = false;
+          let isLastMoveTo = false;
+          
+          if (lastMove && lastMove.turn !== turn) {
+            isLastMoveFrom = lastMove.from[0] === actualR && lastMove.from[1] === actualC;
+            isLastMoveTo = lastMove.to[0] === actualR && lastMove.to[1] === actualC;
+          }
+          
+          let canSee = devMode || !cell;
+          if (cell && !devMode) {
+            if (phase === 'setup') {
+              canSee = cell.p === setupPlayer;
+            } else if (mode === 'ai') {
+              canSee = cell.p === 1;
+            } else if (multiplayerMode === 'local') {
+              canSee = cell.p === turn;
+            } else if (multiplayerMode === 'online') {
+              canSee = cell.p === turn;
+            } else {
+              canSee = true;
+            }
+          }
+          
+          cells.push(
+            <div
+              key={c}
+              onClick={() => onCellClick(actualR, actualC)}
+              className={`flex items-center justify-center cursor-pointer transition-all ${
+                isSelected ? 'bg-yellow-600 shadow-[inset_0_0_20px_rgba(255,215,0,0.6)]' : 
+                isValidMove ? 'bg-emerald-700 hover:bg-emerald-600' :
+                (isLastMoveFrom || isLastMoveTo) ? 'bg-red-800 hover:bg-red-700' :
+                'bg-gradient-to-br from-amber-900 to-yellow-900 hover:from-amber-800 hover:to-yellow-800'
+              } ${c === 0 ? 'border-l-2' : ''} ${r === 0 ? 'border-t-2' : ''} border-r-2 border-b-2 border-yellow-700`}
+              style={{ flex: 1, aspectRatio: '1/1' }}
+            >
+              {cell ? (canSee ? (
+                <div className="w-full h-full p-[2px] md:p-1">
+                  <PieceIcon rank={cell.r} player={cell.p} />
+                </div>
+              ) : 
+                <div className="text-xl md:text-2xl font-serif text-yellow-600">?</div>) : ''}
+            </div>
+          );
+        }
+        rows.push(
+          <div key={r} className="flex" style={{ flex: 1, minHeight: 0 }}>
+            {cells}
+          </div>
+        );
+      }
+      return rows;
+    }
+
+    function Sidebar({ 
+      phase, mode, multiplayerMode, msg, roomId, inventory, defeated, 
+      setupPlayer, turn, board, devMode, lastMove, onFinishSetup, 
+      onAutoSetup, onReset 
+    }) {
+      return (
+        <div className="order-2 flex-shrink-0 lg:flex-initial bg-gradient-to-b from-zinc-900 to-black border-t lg:border-t-0 lg:border-l-4 border-yellow-700 flex flex-col p-2 py-3 lg:p-4 overflow-y-auto max-h-[45vh] lg:max-h-full lg:w-[380px]">
+          <div className="text-center mb-2 pb-2 lg:mb-4 lg:pb-4 border-b-2 border-yellow-800">
+            <h1 className="text-xl md:text-2xl lg:text-4xl font-serif font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-600 tracking-wider">
+              IMPERIUM
+            </h1>
+            <div className="text-[10px] lg:text-xs text-yellow-600 italic mt-0 lg:mt-1 font-serif tracking-widest">SALPAKAN</div>
+            {multiplayerMode === 'online' && roomId && (
+              <div className="mt-2 bg-black rounded px-3 py-1 border border-yellow-900">
+                <span className="text-yellow-600 text-xs font-mono">Room: {roomId}</span>
+              </div>
+            )}
+          </div>
+          
+          {phase === 'setup' && (
+            <>
+              <div className="text-center text-base lg:text-lg text-yellow-400 mb-2 lg:mb-4 font-serif font-bold px-3 py-2 lg:px-4 lg:py-3 bg-black rounded border-2 border-yellow-800">
+                {msg}
+              </div>
+              
+              <div className="mb-2 lg:mb-4 px-3 py-2 lg:px-4 lg:py-3 bg-zinc-900 rounded border-2 border-yellow-900">
+                <div className="text-yellow-500 text-sm lg:text-base font-serif font-bold">
+                  Units Remaining: <span className="text-yellow-300 text-lg lg:text-xl">{Object.values(inventory).reduce((sum, count) => sum + count, 0)}</span> / 21
+                </div>
+              </div>
+            </>
+          )}
+          
+          {phase === 'playing' && (
+            <>
+              <div className="text-center text-base lg:text-lg text-yellow-400 mb-2 lg:mb-4 font-serif font-bold px-3 py-2 lg:px-4 lg:py-3 bg-black rounded border-2 border-yellow-800">
+                {msg}
+              </div>
+            </>
+          )}
+          
+          {devMode && phase === 'playing' && (
+            <div className="mb-2 lg:mb-4 px-3 py-2 lg:px-4 lg:py-3 bg-zinc-900 rounded border-2 border-purple-900">
+              <div className="text-purple-400 text-[10px] lg:text-xs font-mono">
+                <div>Turn: {turn} | View: {phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : setupPlayer}</div>
+                {lastMove && (
+                  <div>Last: [{lastMove.from[0]},{lastMove.from[1]}]→[{lastMove.to[0]},{lastMove.to[1]}] T{lastMove.turn}</div>
+                )}
+                <div>P1: {board.flat().filter(c => c?.p === 1).length} | P2: {board.flat().filter(c => c?.p === 2).length}</div>
+              </div>
+            </div>
+          )}
+          
+          {(phase === 'setup' || phase === 'playing') && (
+            <div className="mb-2 lg:mb-4 space-y-2 lg:space-y-3">
+              {phase === 'setup' && (
+                <div className="px-3 py-2 lg:px-4 lg:py-3 bg-zinc-900 rounded border-2 border-yellow-900">
+                  <div className="text-yellow-500 text-xs lg:text-sm font-serif font-bold mb-1 lg:mb-2">Your Forces:</div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {RANKS.map(({ r }) => {
+                      const count = board.flat().filter(cell => cell?.p === setupPlayer && cell?.r === r).length;
+                      return count > 0 ? (
+                        <div key={r} className="relative w-7 h-7 lg:w-8 lg:h-8 bg-black rounded border border-yellow-700">
+                          <div className="w-full h-full scale-90"><PieceIcon rank={r} player={setupPlayer} /></div>
+                          <div className="absolute -top-1 -right-1 bg-green-700 text-white text-[10px] lg:text-xs rounded-full w-3.5 h-3.5 lg:w-4 lg:h-4 flex items-center justify-center font-bold">{count}</div>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {defeated[phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : (phase === 'playing' && mode === 'ai' ? 1 : setupPlayer)]?.length > 0 && (
+                <div className="px-3 py-2 lg:px-4 lg:py-3 bg-red-950 rounded border-2 border-red-900">
+                  <div className="text-red-400 text-xs lg:text-sm font-serif font-bold mb-1 lg:mb-2">Casualties:</div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {[...new Set(defeated[phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : (phase === 'playing' && mode === 'ai' ? 1 : setupPlayer)])].map(r => {
+                      const count = defeated[phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : (phase === 'playing' && mode === 'ai' ? 1 : setupPlayer)].filter(dr => dr === r).length;
+                      return (
+                        <div key={r} className="relative w-7 h-7 lg:w-8 lg:h-8 bg-black rounded border border-red-800 opacity-60">
+                          <div className="w-full h-full scale-90 grayscale"><PieceIcon rank={r} player={phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : (phase === 'playing' && mode === 'ai' ? 1 : setupPlayer)} /></div>
+                          <div className="absolute -top-1 -right-1 bg-red-700 text-white text-[10px] lg:text-xs rounded-full w-3.5 h-3.5 lg:w-4 lg:h-4 flex items-center justify-center font-bold">{count}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {phase === 'setup' && (
+            <div className="flex flex-col gap-1.5 lg:gap-2 mt-auto">
+              <button onClick={onFinishSetup} 
+                className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-r from-green-700 to-green-800 text-white text-sm lg:text-base font-serif font-bold rounded border-2 border-green-600 hover:from-green-600 hover:to-green-700 shadow-lg">
+                {setupPlayer === 1 && mode === '2player' && multiplayerMode === 'local' ? '→ NEXT COMMANDER' : '⚔ BEGIN BATTLE'}
+              </button>
+              <button onClick={onAutoSetup} 
+                className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-r from-purple-800 to-purple-900 text-yellow-300 text-sm lg:text-base font-serif font-bold rounded border-2 border-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-lg">
+                ⚡ AUTO DEPLOY
+              </button>
+              <button onClick={onReset} 
+                className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-r from-red-900 to-red-950 text-yellow-300 text-sm lg:text-base font-serif font-bold rounded border-2 border-red-800 hover:from-red-800 hover:to-red-900 shadow-lg">
+                ↻ RESET CAMPAIGN
+              </button>
+            </div>
+          )}
+          
+          {phase === 'playing' && (
+            <div className="flex flex-col gap-1.5 lg:gap-2 mt-auto">
+              <button onClick={onReset} 
+                className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-r from-red-900 to-red-950 text-yellow-300 text-sm lg:text-base font-serif font-bold rounded border-2 border-red-800 hover:from-red-800 hover:to-red-900 shadow-lg">
+                ↻ RESET CAMPAIGN
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function UnitPicker({ inventory, setupPlayer, onSelect, onCancel }) {
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4"
+             onClick={onCancel}>
+          <div className="bg-gradient-to-br from-zinc-900 to-black p-6 rounded-lg shadow-2xl max-w-lg w-full border-4 border-yellow-700 max-h-[90vh] overflow-y-auto"
+               onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-2xl font-serif font-black text-yellow-400 mb-4 text-center tracking-wider">SELECT UNIT</h2>
+            <div className="grid grid-cols-5 gap-2">
+              {RANKS.map(({ r }) => (
+                inventory[r] > 0 && (
+                  <button
+                    key={r}
+                    onClick={() => onSelect(r)}
+                    className="px-2 py-3 rounded border-2 bg-gradient-to-br from-yellow-700 to-yellow-800 border-yellow-600 hover:from-yellow-600 hover:to-yellow-700 font-serif font-bold text-sm transition-all hover:scale-110 shadow-lg flex flex-col items-center"
+                  >
+                    <div className="w-full h-12">
+                      <PieceIcon rank={r} player={setupPlayer} />
+                    </div>
+                    <div className="text-xs mt-1 bg-black bg-opacity-50 rounded px-1 text-yellow-300">×{inventory[r]}</div>
+                  </button>
+                )
+              ))}
+            </div>
+            <button onClick={onCancel} 
+                    className="mt-4 w-full px-4 py-2 bg-red-900 text-yellow-300 rounded border-2 border-red-800 hover:bg-red-800 font-serif font-bold">
+              CANCEL
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    function TurnLockModal({ pausePhase, setupPlayer, mode, multiplayerMode, turn, battleResult, onConfirm }) {
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700 text-center">
+            <div className="text-6xl mb-4">⚔</div>
+            <h2 className="text-3xl font-serif font-black text-yellow-400 mb-3 tracking-wider">
+              {pausePhase ? (setupPlayer === 1 && mode === '2player' && multiplayerMode === 'local' ? 'COMMANDER 2' : 'BATTLE BEGINS') : `COMMANDER ${turn}`}
+            </h2>
+            <p className="text-lg text-yellow-600 mb-6 font-serif">
+              {pausePhase ? 'Transfer command authority' : (battleResult ? 'Review the battle outcome' : 'Prepare your strategy')}
+            </p>
+            <button onClick={onConfirm}
+                    className="px-8 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-xl rounded border-2 border-yellow-600 font-serif font-bold hover:from-yellow-600 hover:to-yellow-700 shadow-2xl transform hover:scale-105 transition-all w-full">
+              READY ✓
+            </button>
+            <p className="text-xs text-yellow-700 mt-4 italic font-serif">
+              Honor demands proper turn order
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    function BattleReportModal({ battleResult, showingBattleForPlayer, onContinue }) {
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700 text-center">
+            <div className="mb-6 p-4 bg-black rounded border-2 border-yellow-800">
+              <div className="text-xl font-serif font-bold text-yellow-400 mb-3">BATTLE REPORT</div>
+              <div className="flex items-center justify-center gap-4 mb-2">
+                {battleResult.result === 'draw' ? (
+                  <>
+                    <div className="flex flex-col items-center">
+                      <div className="w-16 h-16 mb-1">
+                        <PieceIcon rank={showingBattleForPlayer === battleResult.player ? battleResult.attacker : battleResult.defender} player={showingBattleForPlayer} />
+                      </div>
+                      <div className="text-xs text-yellow-600">Your Unit</div>
+                    </div>
+                    <div className="text-3xl">⚔</div>
+                    <div className="flex flex-col items-center">
+                      <div className="w-16 h-16 mb-1">
+                        <PieceIcon rank={showingBattleForPlayer === battleResult.player ? battleResult.defender : battleResult.attacker} player={showingBattleForPlayer === 1 ? 2 : 1} />
+                      </div>
+                      <div className="text-xs text-yellow-600">Enemy Unit</div>
+                    </div>
+                  </>
+                ) : showingBattleForPlayer === battleResult.player ? (
+                  <>
+                    <div className="flex flex-col items-center">
+                      <div className="w-16 h-16 mb-1">
+                        <PieceIcon rank={battleResult.attacker} player={battleResult.player} />
+                      </div>
+                      <div className="text-xs text-yellow-600">Your Unit</div>
+                    </div>
+                    <div className="text-3xl">⚔</div>
+                    <div className="flex flex-col items-center">
+                      <div className="w-16 h-16 mb-1 flex items-center justify-center">
+                        {(battleResult.attacker === 'SPY' && battleResult.result === 'lose') || 
+                         (battleResult.attacker === 'PVT' && battleResult.result === 'lose') ||
+                         (battleResult.defender === 'FLAG') ? (
+                          <PieceIcon rank={battleResult.defender} player={battleResult.player === 1 ? 2 : 1} />
+                        ) : (
+                          <div className="text-4xl text-yellow-600">?</div>
+                        )}
+                      </div>
+                      <div className="text-xs text-yellow-600">Enemy</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex flex-col items-center">
+                      <div className="w-16 h-16 mb-1 flex items-center justify-center">
+                        {(battleResult.defender === 'SPY' && battleResult.result === 'win') || 
+                         (battleResult.defender === 'PVT' && battleResult.result === 'win') ||
+                         (battleResult.attacker === 'FLAG') ? (
+                          <PieceIcon rank={battleResult.attacker} player={battleResult.player} />
+                        ) : (
+                          <div className="text-4xl text-yellow-600">?</div>
+                        )}
+                      </div>
+                      <div className="text-xs text-yellow-600">Enemy</div>
+                    </div>
+                    <div className="text-3xl">⚔</div>
+                    <div className="flex flex-col items-center">
+                      <div className="w-16 h-16 mb-1">
+                        <PieceIcon rank={battleResult.defender} player={battleResult.player === 1 ? 2 : 1} />
+                      </div>
+                      <div className="text-xs text-yellow-600">Your Unit</div>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className={`text-lg font-serif font-bold mt-3 ${
+                (showingBattleForPlayer === battleResult.player && battleResult.result === 'win') || (showingBattleForPlayer !== battleResult.player && battleResult.result === 'lose') ? 'text-green-400' : 
+                (showingBattleForPlayer === battleResult.player && battleResult.result === 'lose') || (showingBattleForPlayer !== battleResult.player && battleResult.result === 'win') ? 'text-red-400' : 'text-yellow-400'
+              }`}>
+                {(showingBattleForPlayer === battleResult.player && battleResult.result === 'win') || (showingBattleForPlayer !== battleResult.player && battleResult.result === 'lose') ? '⚔ VICTORY' : 
+                 (showingBattleForPlayer === battleResult.player && battleResult.result === 'lose') || (showingBattleForPlayer !== battleResult.player && battleResult.result === 'win') ? '☠ UNIT LOST' : '⚡ MUTUAL ELIMINATION'}
+              </div>
+            </div>
+            
+            <button onClick={onContinue}
+                    className="px-8 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-xl rounded border-2 border-yellow-600 font-serif font-bold hover:from-yellow-600 hover:to-yellow-700 shadow-2xl transform hover:scale-105 transition-all w-full">
+              CONTINUE ✓
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     function Salpakan() {
       const [screen, setScreen] = useState('home');
-      const [board, setBoard] = useState(initBoard());
+      const [board, setBoard] = useState(GameLogic.initBoard());
       const [phase, setPhase] = useState('setup');
       const [mode, setMode] = useState(null);
       const [turn, setTurn] = useState(1);
@@ -195,13 +709,87 @@
       const [lastMove, setLastMove] = useState(null);
       const [showingBattleForPlayer, setShowingBattleForPlayer] = useState(null);
       const [roomId, setRoomId] = useState('');
-      const [availableRooms, setAvailableRooms] = useState([]);
       const [multiplayerMode, setMultiplayerMode] = useState(null);
+      const [playerId, setPlayerId] = useState(null);
+      const [players, setPlayers] = useState([null, null]);
+      const [isRoomReady, setIsRoomReady] = useState(false);
+      const [opponentBoard, setOpponentBoard] = useState(null);
+
+      useEffect(() => {
+        if (multiplayerMode === 'online' && roomId) {
+          WebSocketManager.on('roomJoined', (data) => {
+            setPlayerId(data.playerId);
+            setPlayers(data.players);
+          });
+
+          WebSocketManager.on('playerJoined', (data) => {
+            setPlayers(data.players);
+            setIsRoomReady(data.players.filter(p => p).length === 2);
+          });
+
+          WebSocketManager.on('gameStart', (data) => {
+            setMsg('Deploy Your Forces');
+          });
+
+          WebSocketManager.on('setupComplete', (data) => {
+            if (data.playerId !== playerId) {
+              setOpponentBoard(data.board);
+            }
+          });
+
+          WebSocketManager.on('move', (data) => {
+            if (data.playerId !== playerId) {
+              setBoard(data.board);
+              setTurn(data.turn);
+              setLastMove(data.lastMove);
+              if (data.battleResult) {
+                setBattleResult(data.battleResult);
+                setShowBattleReport(true);
+              }
+            }
+          });
+
+          WebSocketManager.on('gameEnd', (data) => {
+            setMsg(data.message);
+            setPhase('ended');
+          });
+        }
+
+        return () => {
+          if (multiplayerMode === 'online') {
+            WebSocketManager.disconnect();
+          }
+        };
+      }, [multiplayerMode, roomId, playerId]);
+
+      const resetGame = useCallback(() => {
+        setScreen('home');
+        setBoard(GameLogic.initBoard());
+        setPhase('setup');
+        setMode(null);
+        setMultiplayerMode(null);
+        setMsg('Choose Mode');
+        setInventory({});
+        setSel(null);
+        setMoves([]);
+        setShowPicker(null);
+        setShowTurnLock(false);
+        setDefeated({ 1: [], 2: [] });
+        setBattleResult(null);
+        setLastMove(null);
+        setShowingBattleForPlayer(null);
+        setShowBattleReport(false);
+        setRoomId('');
+        setPlayerId(null);
+        setPlayers([null, null]);
+        setIsRoomReady(false);
+        WebSocketManager.disconnect();
+      }, []);
 
       const startSetup = (m, mp = null) => {
         setMode(m);
         setMultiplayerMode(mp);
-        setBoard(initBoard());
+        setBoard(GameLogic.initBoard());
         const inv = {};
         RANKS.forEach(({ r, count }) => { inv[r] = count; });
         setInventory(inv);
@@ -217,11 +805,22 @@
           setMsg('Deploy All Units!');
           return;
         }
-        if (setupPlayer === 1 && mode === '2player' && multiplayerMode === 'local') {
+
+        if (multiplayerMode === 'online') {
+          WebSocketManager.send({
+            type: 'setupComplete',
+            roomId,
+            playerId,
+            board
+          });
+          setPhase('playing');
+          setTurn(1);
+          setMsg('Waiting for opponent...');
+        } else if (setupPlayer === 1 && mode === '2player' && multiplayerMode === 'local') {
           setShowTurnLock(true);
           setPausePhase(true);
         } else if (setupPlayer === 1 && mode === 'ai') {
-          const nb = autoSetup(board, 2);
+          const nb = GameLogic.autoSetup(board, 2);
           setBoard(nb);
           setPhase('playing');
           setTurn(1);
@@ -304,11 +903,12 @@
 
       const handlePlayClick = (r, c) => {
         if (mode === 'ai' && turn !== 1) return;
+        if (multiplayerMode === 'online' && turn !== playerId) return;
         
         if (!sel) {
           if (board[r][c]?.p === turn) {
             setSel([r, c]);
-            setMoves(validMoves(board, r, c));
+            setMoves(GameLogic.validMoves(board, r, c));
           }
         } else {
           const [sr, sc] = sel;
@@ -323,7 +923,7 @@
             const newDefeated = { ...defeated };
             
             if (defender) {
-              const res = battle(attacker, defender);
+              const res = GameLogic.battle(attacker, defender);
               
               if (res === 'win') {
                 nb[r][c] = attacker;
@@ -338,6 +938,14 @@
                   setSel(null);
                   setDefeated(newDefeated);
                   setPhase('ended');
+                  if (multiplayerMode === 'online') {
+                    WebSocketManager.send({
+                      type: 'gameEnd',
+                      roomId,
+                      winner: turn,
+                      message: `Victory - Commander ${turn}!`
+                    });
+                  }
                   return;
                 }
               } else if (res === 'lose') {
@@ -353,6 +961,14 @@
                   setSel(null);
                   setDefeated(newDefeated);
                   setPhase('ended');
+                  if (multiplayerMode === 'online') {
+                    WebSocketManager.send({
+                      type: 'gameEnd',
+                      roomId,
+                      winner,
+                      message: `Victory - Commander ${winner}!`
+                    });
+                  }
                   return;
                 }
               } else {
@@ -371,13 +987,25 @@
             setBoard(nb);
             setSel(null);
             setMoves([]);
-            
-            if (mode === 'ai') {
+
+            if (multiplayerMode === 'online') {
+              WebSocketManager.send({
+                type: 'move',
+                roomId,
+                playerId,
+                board: nb,
+                turn: turn === 1 ? 2 : 1,
+                lastMove: { from: [sr, sc], to: [r, c], turn },
+                battleResult: defender ? battleResult : null,
+                defeated: newDefeated
+              });
+              setTurn(turn === 1 ? 2 : 1);
+            } else if (mode === 'ai') {
               setTurn(2);
               setMsg('Enemy Calculating...');
               const currentDefeated = { ...newDefeated };
               setTimeout(() => {
-                const aiM = aiMove(nb);
+                const aiM = GameLogic.aiMove(nb);
                 if (!aiM) { 
                   setMsg('Imperial Victory!'); 
                   setTurn(1);
@@ -399,7 +1027,7 @@
                 const newDefeated2 = { ...currentDefeated };
                 
                 if (def) {
-                  const res = battle(aiA, def);
+                  const res = GameLogic.battle(aiA, def);
                   if (res === 'win') {
                     nb2[tr][tc] = aiA;
                     nb2[ar][ac] = null;
@@ -450,531 +1078,138 @@
         }
       };
 
-      const renderBoard = () => {
-        const perspective = phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : setupPlayer;
-        
-        const rows = [];
-        for (let r = 0; r < 8; r++) {
-          const cells = [];
-          for (let c = 0; c < 9; c++) {
-            const actualR = perspective === 2 ? 7 - r : r;
-            const actualC = perspective === 2 ? 8 - c : c;
-            const cell = board[actualR][actualC];
-            
-            const isSelected = sel?.[0] === actualR && sel?.[1] === actualC;
-            const isValidMove = moves.some(([mr, mc]) => mr === actualR && mc === actualC);
-            
-            let isLastMoveFrom = false;
-            let isLastMoveTo = false;
-            
-            if (lastMove && lastMove.turn !== turn) {
-              isLastMoveFrom = lastMove.from[0] === actualR && lastMove.from[1] === actualC;
-              isLastMoveTo = lastMove.to[0] === actualR && lastMove.to[1] === actualC;
-            }
-            
-            let canSee = devMode || !cell;
-            if (cell && !devMode) {
-              if (phase === 'setup') {
-                canSee = cell.p === setupPlayer;
-              } else if (mode === 'ai') {
-                canSee = cell.p === 1;
-              } else if (multiplayerMode === 'local') {
-                canSee = cell.p === turn;
-              } else {
-                canSee = true;
-              }
-            }
-            
-            cells.push(
-            <div
-              key={c}
-              onClick={() => phase === 'setup' ? handleSetupClick(actualR, actualC) : handlePlayClick(actualR, actualC)}
-              className={`flex items-center justify-center cursor-pointer transition-all ${
-                isSelected ? 'bg-yellow-600 shadow-[inset_0_0_20px_rgba(255,215,0,0.6)]' : 
-                isValidMove ? 'bg-emerald-700 hover:bg-emerald-600' :
-                (isLastMoveFrom || isLastMoveTo) ? 'bg-red-800 hover:bg-red-700' :
-                'bg-gradient-to-br from-amber-900 to-yellow-900 hover:from-amber-800 hover:to-yellow-800'
-              } ${c === 0 ? 'border-l-2' : ''} ${r === 0 ? 'border-t-2' : ''} border-r-2 border-b-2 border-yellow-700`}
-              style={{ flex: 1, aspectRatio: '1/1' }}
-            >
-              {cell ? (canSee ? (
-                <div className="w-full h-full p-[2px] md:p-1">
-                  <PieceIcon rank={cell.r} player={cell.p} />
-                </div>
-              ) : 
-                <div className="text-xl md:text-2xl font-serif text-yellow-600">?</div>) : ''}
-            </div>
-          );}
-          rows.push(
-            <div key={r} className="flex" style={{ flex: 1, minHeight: 0 }}>
-              {cells}
-            </div>
-          );
+      const handleCellClick = (r, c) => {
+        if (phase === 'setup') {
+          handleSetupClick(r, c);
+        } else if (phase === 'playing') {
+          handlePlayClick(r, c);
         }
-        return rows;
+      };
+
+      const handleAutoSetup = () => {
+        const freshBoard = setupPlayer === 1 ? board : board;
+        const nb = GameLogic.autoSetup(freshBoard, setupPlayer);
+        setBoard(nb);
+        const inv = {};
+        RANKS.forEach(({ r }) => { inv[r] = 0; });
+        setInventory(inv);
       };
 
       const createRoom = () => {
         const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
         setRoomId(newRoomId);
+        WebSocketManager.connect(newRoomId, null);
         setScreen('room');
       };
 
       const joinRoom = (id) => {
         setRoomId(id);
+        WebSocketManager.connect(id, null);
         setScreen('room');
       };
 
+      const startOnlineGame = () => {
+        if (!isRoomReady) return;
+        WebSocketManager.send({
+          type: 'startGame',
+          roomId
+        });
+        startSetup('2player', 'online');
+      };
+
       if (screen === 'home') {
-        return (
-          <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
-            <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700 text-center">
-              <div className="text-6xl mb-4">⚔</div>
-              <h2 className="text-4xl font-serif font-black text-yellow-400 mb-6 tracking-wider">IMPERIUM</h2>
-              <p className="text-sm text-yellow-600 mb-8 font-serif italic tracking-widest">SALPAKAN</p>
-              
-              <div className="flex flex-col gap-3">
-                <button onClick={() => startSetup('ai')} 
-                  className="px-6 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-lg font-serif font-bold rounded border-2 border-yellow-600 hover:from-yellow-600 hover:to-yellow-700 shadow-lg transform hover:scale-105 transition-all">
-                  ⚔ VS MACHINE
-                </button>
-                
-                <button onClick={() => startSetup('2player', 'local')} 
-                  className="px-6 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-lg font-serif font-bold rounded border-2 border-yellow-600 hover:from-yellow-600 hover:to-yellow-700 shadow-lg transform hover:scale-105 transition-all">
-                  ⚔ VS LOCAL OC
-                </button>
-                
-                <button onClick={() => setScreen('multiplayer')} 
-                  className="px-6 py-3 bg-gradient-to-r from-emerald-700 to-emerald-800 text-black text-lg font-serif font-bold rounded border-2 border-emerald-600 hover:from-yellow-600 hover:to-yellow-700 shadow-lg transform hover:scale-105 transition-all">
-                  ⚔ VS MACHINE
-                </button>
-              </div>
-              
-              <button onClick={() => setDevMode(!devMode)} 
-                className="w-full mt-6 px-4 py-2 bg-gradient-to-r from-orange-800 to-orange-900 text-white text-base font-serif font-bold rounded border-2 border-orange-700 hover:from-orange-700 hover:to-orange-800 shadow-lg">
-                👁 OMNISCIENCE: {devMode ? 'ON' : 'OFF'}
-              </button>
-              
-              <p className="text-xs text-yellow-700 mt-4 italic font-serif">
-                Choose your battle
-              </p>
-            </div>
-          </div>
-        );
+        return <HomeScreen 
+          onModeSelect={(m, mp) => m === 'multiplayer' ? setScreen('multiplayer') : startSetup(m, mp)} 
+          devMode={devMode} 
+          setDevMode={setDevMode} 
+        />;
       }
 
       if (screen === 'multiplayer') {
-        return (
-          <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
-            <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700">
-              <button onClick={() => setScreen('home')} 
-                className="mb-4 text-yellow-600 hover:text-yellow-400 font-serif text-sm">
-                ← Back
-              </button>
-              
-              <div className="text-center mb-8">
-                <div className="text-5xl mb-3">🌐</div>
-                <h2 className="text-3xl font-serif font-black text-yellow-400 mb-2 tracking-wider">ONLINE BATTLE</h2>
-                <p className="text-xs text-yellow-600 font-serif italic">Connect two devices</p>
-              </div>
-              
-              <div className="flex flex-col gap-4">
-                <button onClick={createRoom} 
-                  className="px-6 py-4 bg-gradient-to-r from-emerald-700 to-emerald-800 text-white text-xl font-serif font-bold rounded border-2 border-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg transform hover:scale-105 transition-all">
-                  ➕ CREATE ROOM
-                </button>
-                
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-yellow-800"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-zinc-900 text-yellow-600 font-serif">or</span>
-                  </div>
-                </div>
-                
-                <div>
-                  <input 
-                    type="text" 
-                    placeholder="Enter Room ID"
-                    value={roomId}
-                    onChange={(e) => setRoomId(e.target.value.toUpperCase())}
-                    className="w-full px-4 py-3 bg-black text-yellow-400 border-2 border-yellow-800 rounded font-mono text-lg text-center placeholder-yellow-800 focus:border-yellow-600 focus:outline-none"
-                    maxLength={6}
-                  />
-                  <button 
-                    onClick={() => roomId.length === 6 && joinRoom(roomId)} 
-                    disabled={roomId.length !== 6}
-                    className="w-full mt-2 px-6 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-lg font-serif font-bold rounded border-2 border-yellow-600 hover:from-yellow-600 hover:to-yellow-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all">
-                    🚪 JOIN ROOM
-                  </button>
-                </div>
-                
-                {availableRooms.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-yellow-600 font-serif text-sm mb-2">Available Rooms:</p>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {availableRooms.map(room => (
-                        <button 
-                          key={room.id}
-                          onClick={() => joinRoom(room.id)}
-                          className="w-full px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-yellow-400 rounded border border-yellow-800 font-mono text-left transition-all">
-                          <div className="flex justify-between items-center">
-                            <span>{room.id}</span>
-                            <span className="text-xs text-yellow-600">{room.players}/2</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        );
+        return <MultiplayerLobby 
+          onBack={() => setScreen('home')} 
+          onCreateRoom={createRoom}
+          onJoinRoom={joinRoom}
+          roomId={roomId}
+          setRoomId={setRoomId}
+        />;
       }
 
       if (screen === 'room') {
-        return (
-          <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
-            <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700 text-center">
-              <button onClick={() => { setScreen('multiplayer'); setRoomId(''); }} 
-                className="mb-4 text-yellow-600 hover:text-yellow-400 font-serif text-sm">
-                ← Leave Room
-              </button>
-              
-              <div className="text-5xl mb-4">🎮</div>
-              <h2 className="text-3xl font-serif font-black text-yellow-400 mb-4 tracking-wider">ROOM</h2>
-              
-              <div className="bg-black rounded-lg p-6 mb-6 border-2 border-yellow-800">
-                <p className="text-yellow-600 text-sm font-serif mb-2">Room ID</p>
-                <p className="text-yellow-400 text-4xl font-mono font-bold tracking-widest">{roomId}</p>
-                <p className="text-yellow-700 text-xs font-serif italic mt-2">Share this code with your opponent</p>
-              </div>
-              
-              <div className="bg-zinc-800 rounded-lg p-4 mb-6 border-2 border-yellow-900">
-                <p className="text-yellow-500 text-sm font-serif mb-3">Players</p>
-                <div className="space-y-2">
-                  <div className="bg-black rounded px-3 py-2 flex items-center justify-between">
-                    <span className="text-yellow-400 font-serif">Commander 1</span>
-                    <span className="text-green-500 text-sm">✓ Ready</span>
-                  </div>
-                  <div className="bg-black rounded px-3 py-2 flex items-center justify-between opacity-50">
-                    <span className="text-yellow-600 font-serif">Commander 2</span>
-                    <span className="text-yellow-700 text-sm">⏳ Waiting...</span>
-                  </div>
-                </div>
-              </div>
-              
-              <button 
-                onClick={() => startSetup('2player', 'online')}
-                disabled={true}
-                className="w-full px-6 py-3 bg-gradient-to-r from-emerald-700 to-emerald-800 text-white text-lg font-serif font-bold rounded border-2 border-emerald-600 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                ⚔ START BATTLE
-              </button>
-              
-              <p className="text-xs text-yellow-700 mt-4 italic font-serif">
-                Waiting for opponent to join...
-              </p>
-            </div>
-          </div>
-        );
+        return <RoomWaiting 
+          roomId={roomId}
+          onLeave={() => { setScreen('multiplayer'); setRoomId(''); WebSocketManager.disconnect(); }}
+          onStart={startOnlineGame}
+          players={players}
+          isReady={isRoomReady}
+        />;
       }
 
       return (
         <div className="h-screen w-screen flex flex-col lg:flex-row bg-black overflow-hidden">
           <div className="order-1 flex-1 flex items-center justify-center p-1 md:p-2 bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 min-h-0">
             <div className="w-full h-full max-w-[min(98vw,calc(98vh*1.125))] max-h-[min(98vw/1.125,98vh)] lg:max-w-[min(98vw,calc(98vh*1.125))] lg:max-h-[min(98vw/1.125,98vh)] flex flex-col rounded-lg shadow-[0_0_40px_rgba(212,175,55,0.3)] overflow-hidden border-4 border-yellow-700">
-              {renderBoard()}
+              <GameBoard 
+                board={board}
+                phase={phase}
+                mode={mode}
+                multiplayerMode={multiplayerMode}
+                turn={turn}
+                setupPlayer={setupPlayer}
+                sel={sel}
+                moves={moves}
+                lastMove={lastMove}
+                devMode={devMode}
+                onCellClick={handleCellClick}
+              />
             </div>
           </div>
 
-          <div className="order-2 flex-shrink-0 lg:flex-initial bg-gradient-to-b from-zinc-900 to-black border-t lg:border-t-0 lg:border-l-4 border-yellow-700 flex flex-col p-2 py-3 lg:p-4 overflow-y-auto max-h-[45vh] lg:max-h-full lg:w-[380px]">
-            <div className="text-center mb-2 pb-2 lg:mb-4 lg:pb-4 border-b-2 border-yellow-800">
-              <h1 className="text-xl md:text-2xl lg:text-4xl font-serif font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-600 tracking-wider">
-                IMPERIUM
-              </h1>
-              <div className="text-[10px] lg:text-xs text-yellow-600 italic mt-0 lg:mt-1 font-serif tracking-widest">SALPAKAN</div>
-              {multiplayerMode === 'online' && (
-                <div className="mt-2 bg-black rounded px-3 py-1 border border-yellow-900">
-                  <span className="text-yellow-600 text-xs font-mono">Room: {roomId}</span>
-                </div>
-              )}
-            </div>
-            
-            {phase === 'setup' && (
-              <>
-                <div className="text-center text-base lg:text-lg text-yellow-400 mb-2 lg:mb-4 font-serif font-bold px-3 py-2 lg:px-4 lg:py-3 bg-black rounded border-2 border-yellow-800">
-                  {msg}
-                </div>
-                
-                <div className="mb-2 lg:mb-4 px-3 py-2 lg:px-4 lg:py-3 bg-zinc-900 rounded border-2 border-yellow-900">
-                  <div className="text-yellow-500 text-sm lg:text-base font-serif font-bold">
-                    Units Remaining: <span className="text-yellow-300 text-lg lg:text-xl">{Object.values(inventory).reduce((sum, count) => sum + count, 0)}</span> / 21
-                  </div>
-                </div>
-              </>
-            )}
-            
-            {phase === 'playing' && (
-              <>
-                <div className="text-center text-base lg:text-lg text-yellow-400 mb-2 lg:mb-4 font-serif font-bold px-3 py-2 lg:px-4 lg:py-3 bg-black rounded border-2 border-yellow-800">
-                  {msg}
-                </div>
-              </>
-            )}
-            
-            {devMode && phase === 'playing' && (
-              <div className="mb-2 lg:mb-4 px-3 py-2 lg:px-4 lg:py-3 bg-zinc-900 rounded border-2 border-purple-900">
-                <div className="text-purple-400 text-[10px] lg:text-xs font-mono">
-                  <div>Turn: {turn} | View: {phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : setupPlayer}</div>
-                  {lastMove && (
-                    <div>Last: [{lastMove.from[0]},{lastMove.from[1]}]→[{lastMove.to[0]},{lastMove.to[1]}] T{lastMove.turn}</div>
-                  )}
-                  <div>P1: {board.flat().filter(c => c?.p === 1).length} | P2: {board.flat().filter(c => c?.p === 2).length}</div>
-                </div>
-              </div>
-            )}
-            
-            {(phase === 'setup' || phase === 'playing') && (
-              <div className="mb-2 lg:mb-4 space-y-2 lg:space-y-3">
-                {phase === 'setup' && (
-                  <div className="px-3 py-2 lg:px-4 lg:py-3 bg-zinc-900 rounded border-2 border-yellow-900">
-                    <div className="text-yellow-500 text-xs lg:text-sm font-serif font-bold mb-1 lg:mb-2">Your Forces:</div>
-                    <div className="grid grid-cols-7 gap-1">
-                      {RANKS.map(({ r }) => {
-                        const count = board.flat().filter(cell => cell?.p === setupPlayer && cell?.r === r).length;
-                        return count > 0 ? (
-                          <div key={r} className="relative w-7 h-7 lg:w-8 lg:h-8 bg-black rounded border border-yellow-700">
-                            <div className="w-full h-full scale-90"><PieceIcon rank={r} player={setupPlayer} /></div>
-                            <div className="absolute -top-1 -right-1 bg-green-700 text-white text-[10px] lg:text-xs rounded-full w-3.5 h-3.5 lg:w-4 lg:h-4 flex items-center justify-center font-bold">{count}</div>
-                          </div>
-                        ) : null;
-                      })}
-                    </div>
-                  </div>
-                )}
-                
-                {defeated[phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : (phase === 'playing' && mode === 'ai' ? 1 : setupPlayer)].length > 0 && (
-                  <div className="px-3 py-2 lg:px-4 lg:py-3 bg-red-950 rounded border-2 border-red-900">
-                    <div className="text-red-400 text-xs lg:text-sm font-serif font-bold mb-1 lg:mb-2">Casualties:</div>
-                    <div className="grid grid-cols-7 gap-1">
-                      {[...new Set(defeated[phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : (phase === 'playing' && mode === 'ai' ? 1 : setupPlayer)])].map(r => {
-                        const count = defeated[phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : (phase === 'playing' && mode === 'ai' ? 1 : setupPlayer)].filter(dr => dr === r).length;
-                        return (
-                          <div key={r} className="relative w-7 h-7 lg:w-8 lg:h-8 bg-black rounded border border-red-800 opacity-60">
-                            <div className="w-full h-full scale-90 grayscale"><PieceIcon rank={r} player={phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : (phase === 'playing' && mode === 'ai' ? 1 : setupPlayer)} /></div>
-                            <div className="absolute -top-1 -right-1 bg-red-700 text-white text-[10px] lg:text-xs rounded-full w-3.5 h-3.5 lg:w-4 lg:h-4 flex items-center justify-center font-bold">{count}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {phase === 'setup' && (
-              <div className="flex flex-col gap-1.5 lg:gap-2 mt-auto">
-                <button onClick={finishSetup} 
-                  className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-r from-green-700 to-green-800 text-white text-sm lg:text-base font-serif font-bold rounded border-2 border-green-600 hover:from-green-600 hover:to-green-700 shadow-lg">
-                  {setupPlayer === 1 && mode === '2player' && multiplayerMode === 'local' ? '→ NEXT COMMANDER' : '⚔ BEGIN BATTLE'}
-                </button>
-                <button onClick={() => {
-                  const freshBoard = setupPlayer === 1 ? board : board;
-                  const nb = autoSetup(freshBoard, setupPlayer);
-                  setBoard(nb);
-                  const inv = {};
-                  RANKS.forEach(({ r }) => { inv[r] = 0; });
-                  setInventory(inv);
-                }} className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-r from-purple-800 to-purple-900 text-yellow-300 text-sm lg:text-base font-serif font-bold rounded border-2 border-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-lg">
-                  ⚡ AUTO DEPLOY
-                </button>
-                <button onClick={() => { 
-                  setScreen('home');
-                  setBoard(initBoard()); 
-                  setPhase('setup'); 
-                  setMode(null); 
-                  setMultiplayerMode(null);
-                  setMsg('Choose Mode'); 
-                  setInventory({}); 
-                  setSel(null); 
-                  setMoves([]); 
-                  setShowPicker(null); 
-                  setShowTurnLock(false); 
-                  setDefeated({ 1: [], 2: [] }); 
-                  setBattleResult(null); 
-                  setLastMove(null); 
-                  setShowingBattleForPlayer(null); 
-                  setShowBattleReport(false); 
-                  setRoomId('');
-                }} 
-                  className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-r from-red-900 to-red-950 text-yellow-300 text-sm lg:text-base font-serif font-bold rounded border-2 border-red-800 hover:from-red-800 hover:to-red-900 shadow-lg">
-                  ↻ RESET CAMPAIGN
-                </button>
-              </div>
-            )}
-            
-            {phase === 'playing' && (
-              <div className="flex flex-col gap-1.5 lg:gap-2 mt-auto">
-                <button onClick={() => { 
-                  setScreen('home');
-                  setBoard(initBoard()); 
-                  setPhase('setup'); 
-                  setMode(null); 
-                  setMultiplayerMode(null);
-                  setMsg('Choose Mode'); 
-                  setInventory({}); 
-                  setSel(null); 
-                  setMoves([]); 
-                  setShowPicker(null); 
-                  setShowTurnLock(false); 
-                  setDefeated({ 1: [], 2: [] }); 
-                  setBattleResult(null); 
-                  setLastMove(null); 
-                  setShowingBattleForPlayer(null); 
-                  setShowBattleReport(false); 
-                  setRoomId('');
-                }} 
-                  className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-r from-red-900 to-red-950 text-yellow-300 text-sm lg:text-base font-serif font-bold rounded border-2 border-red-800 hover:from-red-800 hover:to-red-900 shadow-lg">
-                  ↻ RESET CAMPAIGN
-                </button>
-              </div>
-            )}
-          </div>
+          <Sidebar 
+            phase={phase}
+            mode={mode}
+            multiplayerMode={multiplayerMode}
+            msg={msg}
+            roomId={roomId}
+            inventory={inventory}
+            defeated={defeated}
+            setupPlayer={setupPlayer}
+            turn={turn}
+            board={board}
+            devMode={devMode}
+            lastMove={lastMove}
+            onFinishSetup={finishSetup}
+            onAutoSetup={handleAutoSetup}
+            onReset={resetGame}
+          />
 
           {showPicker && (
-            <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4"
-                 onClick={() => setShowPicker(null)}>
-              <div className="bg-gradient-to-br from-zinc-900 to-black p-6 rounded-lg shadow-2xl max-w-lg w-full border-4 border-yellow-700 max-h-[90vh] overflow-y-auto"
-                   onClick={(e) => e.stopPropagation()}>
-                <h2 className="text-2xl font-serif font-black text-yellow-400 mb-4 text-center tracking-wider">SELECT UNIT</h2>
-                <div className="grid grid-cols-5 gap-2">
-                  {RANKS.map(({ r, count }) => (
-                    inventory[r] > 0 && (
-                      <button
-                        key={r}
-                        onClick={() => placeOnBoard(showPicker[0], showPicker[1], r)}
-                        className="px-2 py-3 rounded border-2 bg-gradient-to-br from-yellow-700 to-yellow-800 border-yellow-600 hover:from-yellow-600 hover:to-yellow-700 font-serif font-bold text-sm transition-all hover:scale-110 shadow-lg flex flex-col items-center"
-                      >
-                        <PieceIcon rank={r} player={setupPlayer} size="sm" />
-                        <div className="text-xs mt-1 bg-black bg-opacity-50 rounded px-1 text-yellow-300">×{inventory[r]}</div>
-                      </button>
-                    )
-                  ))}
-                </div>
-                <button onClick={() => setShowPicker(null)} 
-                        className="mt-4 w-full px-4 py-2 bg-red-900 text-yellow-300 rounded border-2 border-red-800 hover:bg-red-800 font-serif font-bold">
-                  CANCEL
-                </button>
-              </div>
-            </div>
+            <UnitPicker 
+              inventory={inventory}
+              setupPlayer={setupPlayer}
+              onSelect={(rank) => placeOnBoard(showPicker[0], showPicker[1], rank)}
+              onCancel={() => setShowPicker(null)}
+            />
           )}
 
           {showBattleReport && battleResult && (
-            <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
-              <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700 text-center">
-                <div className="mb-6 p-4 bg-black rounded border-2 border-yellow-800">
-                  <div className="text-xl font-serif font-bold text-yellow-400 mb-3">BATTLE REPORT</div>
-                  <div className="flex items-center justify-center gap-4 mb-2">
-                    {battleResult.result === 'draw' ? (
-                      <>
-                        <div className="flex flex-col items-center">
-                          <div className="w-16 h-16 mb-1">
-                            <PieceIcon rank={showingBattleForPlayer === battleResult.player ? battleResult.attacker : battleResult.defender} player={showingBattleForPlayer} />
-                          </div>
-                          <div className="text-xs text-yellow-600">Your Unit</div>
-                        </div>
-                        <div className="text-3xl">⚔</div>
-                        <div className="flex flex-col items-center">
-                          <div className="w-16 h-16 mb-1">
-                            <PieceIcon rank={showingBattleForPlayer === battleResult.player ? battleResult.defender : battleResult.attacker} player={showingBattleForPlayer === 1 ? 2 : 1} />
-                          </div>
-                          <div className="text-xs text-yellow-600">Enemy Unit</div>
-                        </div>
-                      </>
-                    ) : showingBattleForPlayer === battleResult.player ? (
-                      <>
-                        <div className="flex flex-col items-center">
-                          <div className="w-16 h-16 mb-1">
-                            <PieceIcon rank={battleResult.attacker} player={battleResult.player} />
-                          </div>
-                          <div className="text-xs text-yellow-600">Your Unit</div>
-                        </div>
-                        <div className="text-3xl">⚔</div>
-                        <div className="flex flex-col items-center">
-                          <div className="w-16 h-16 mb-1 flex items-center justify-center">
-                            {(battleResult.attacker === 'SPY' && battleResult.result === 'lose') || 
-                             (battleResult.attacker === 'PVT' && battleResult.result === 'lose') ||
-                             (battleResult.defender === 'FLAG') ? (
-                              <PieceIcon rank={battleResult.defender} player={battleResult.player === 1 ? 2 : 1} />
-                            ) : (
-                              <div className="text-4xl text-yellow-600">?</div>
-                            )}
-                          </div>
-                          <div className="text-xs text-yellow-600">Enemy</div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex flex-col items-center">
-                          <div className="w-16 h-16 mb-1 flex items-center justify-center">
-                            {(battleResult.defender === 'SPY' && battleResult.result === 'win') || 
-                             (battleResult.defender === 'PVT' && battleResult.result === 'win') ||
-                             (battleResult.attacker === 'FLAG') ? (
-                              <PieceIcon rank={battleResult.attacker} player={battleResult.player} />
-                            ) : (
-                              <div className="text-4xl text-yellow-600">?</div>
-                            )}
-                          </div>
-                          <div className="text-xs text-yellow-600">Enemy</div>
-                        </div>
-                        <div className="text-3xl">⚔</div>
-                        <div className="flex flex-col items-center">
-                          <div className="w-16 h-16 mb-1">
-                            <PieceIcon rank={battleResult.defender} player={battleResult.player === 1 ? 2 : 1} />
-                          </div>
-                          <div className="text-xs text-yellow-600">Your Unit</div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  <div className={`text-lg font-serif font-bold mt-3 ${
-                    (showingBattleForPlayer === battleResult.player && battleResult.result === 'win') || (showingBattleForPlayer !== battleResult.player && battleResult.result === 'lose') ? 'text-green-400' : 
-                    (showingBattleForPlayer === battleResult.player && battleResult.result === 'lose') || (showingBattleForPlayer !== battleResult.player && battleResult.result === 'win') ? 'text-red-400' : 'text-yellow-400'
-                  }`}>
-                    {(showingBattleForPlayer === battleResult.player && battleResult.result === 'win') || (showingBattleForPlayer !== battleResult.player && battleResult.result === 'lose') ? '⚔ VICTORY' : 
-                     (showingBattleForPlayer === battleResult.player && battleResult.result === 'lose') || (showingBattleForPlayer !== battleResult.player && battleResult.result === 'win') ? '☠ UNIT LOST' : '⚡ MUTUAL ELIMINATION'}
-                  </div>
-                </div>
-                
-                <button onClick={confirmTurn}
-                        className="px-8 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-xl rounded border-2 border-yellow-600 font-serif font-bold hover:from-yellow-600 hover:to-yellow-700 shadow-2xl transform hover:scale-105 transition-all w-full">
-                  CONTINUE ✓
-                </button>
-              </div>
-            </div>
+            <BattleReportModal 
+              battleResult={battleResult}
+              showingBattleForPlayer={showingBattleForPlayer}
+              onContinue={confirmTurn}
+            />
           )}
 
           {showTurnLock && (
-            <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
-              <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700 text-center">
-                <div className="text-6xl mb-4">⚔</div>
-                <h2 className="text-3xl font-serif font-black text-yellow-400 mb-3 tracking-wider">
-                  {pausePhase ? (setupPlayer === 1 && mode === '2player' && multiplayerMode === 'local' ? 'COMMANDER 2' : 'BATTLE BEGINS') : `COMMANDER ${turn}`}
-                </h2>
-                <p className="text-lg text-yellow-600 mb-6 font-serif">
-                  {pausePhase ? 'Transfer command authority' : (battleResult ? 'Review the battle outcome' : 'Prepare your strategy')}
-                </p>
-                <button onClick={confirmTurn}
-                        className="px-8 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-xl rounded border-2 border-yellow-600 font-serif font-bold hover:from-yellow-600 hover:to-yellow-700 shadow-2xl transform hover:scale-105 transition-all w-full">
-                  READY ✓
-                </button>
-                <p className="text-xs text-yellow-700 mt-4 italic font-serif">
-                  Honor demands proper turn order
-                </p>
-              </div>
-            </div>
+            <TurnLockModal 
+              pausePhase={pausePhase}
+              setupPlayer={setupPlayer}
+              mode={mode}
+              multiplayerMode={multiplayerMode}
+              turn={turn}
+              battleResult={battleResult}
+              onConfirm={confirmTurn}
+            />
           )}
         </div>
       );

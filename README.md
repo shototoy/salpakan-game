@@ -1,46 +1,154 @@
-# Getting Started with Create React App
+# Salpakan: Imperium - Multiplayer Setup
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## Overview
+This is a modularized version of Salpakan: Imperium with WebSocket-based multiplayer support.
 
-## Available Scripts
+## Features
+- **Modular Architecture**: Clean separation of concerns with component-based structure
+- **AI Mode**: Play against computer opponent
+- **Local Multiplayer**: Hot-seat mode on same device
+- **Online Multiplayer**: Play over network using WebSocket
 
-In the project directory, you can run:
+## Project Structure
+```
+salpakan-imperium/
+├── index.html          # Main game client (modular React app)
+├── server.js           # WebSocket server
+├── package.json        # Node.js dependencies
+└── README.md          # This file
+```
 
-### `npm start`
+## Setup Instructions
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+### 1. Install Node.js
+Make sure you have Node.js installed (v14 or higher)
+- Download from: https://nodejs.org/
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+### 2. Install Dependencies
+```bash
+npm install
+```
 
-### `npm test`
+### 3. Start the WebSocket Server
+```bash
+npm start
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+The server will run on `ws://localhost:8080`
 
-### `npm run build`
+For development with auto-restart:
+```bash
+npm run dev
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### 4. Open the Game Client
+Simply open `index.html` in your browser. You can:
+- Double-click the file
+- Use a local server: `npx serve .` or `python -m http.server`
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## How to Play Multiplayer
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Online Mode (Network):
+1. **Player 1**: Click "VS NETWORK COMMANDER" → "CREATE ROOM"
+2. Share the 6-character Room ID with Player 2
+3. **Player 2**: Click "VS NETWORK COMMANDER" → Enter Room ID → "JOIN ROOM"
+4. Both players click "START BATTLE"
+5. Deploy your forces (arrange pieces on your side)
+6. Take turns making moves
 
-### `npm run eject`
+### Local Mode:
+1. Click "VS LOCAL COMMANDER"
+2. Player 1 deploys forces → Pass device to Player 2
+3. Player 2 deploys forces
+4. Players alternate turns (device is passed between turns)
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+### AI Mode:
+1. Click "VS MACHINE"
+2. Deploy your forces
+3. Play against the computer AI
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Game Rules
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+### Piece Hierarchy (Strongest to Weakest):
+1. 5★ General (1)
+2. 4★ General (1)
+3. 3★ General (1)
+4. 2★ General (1)
+5. 1★ General (1)
+6. Colonel (1)
+7. Lt. Colonel (1)
+8. Major (1)
+9. Captain (1)
+10. 1st Lieutenant (1)
+11. 2nd Lieutenant (1)
+12. Sergeant (2)
+13. Private (5)
+14. Spy (2) - Can eliminate all except Private
+15. Flag (1) - Cannot move, capturing it wins the game
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+### Special Rules:
+- **Spy** defeats all pieces except Private
+- **Private** defeats Spy
+- **Equal ranks** result in both pieces being eliminated
+- **Flag** cannot move and loses to any piece
 
-## Learn More
+### How to Win:
+- Capture the opponent's Flag
+- Eliminate all opponent pieces that can move
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## Development Notes
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Modular Components:
+- `GameLogic`: Core game mechanics (board, pieces, battle system)
+- `WebSocketManager`: Network communication handler
+- `PieceIcon`: SVG-based piece renderer
+- `HomeScreen`: Main menu
+- `MultiplayerLobby`: Room creation/joining
+- `RoomWaiting`: Waiting room for players
+- `GameBoard`: Main game board renderer
+- `Sidebar`: Game info and controls
+- `UnitPicker`: Piece selection during setup
+- `BattleReportModal`: Combat result display
+- `TurnLockModal`: Turn transition screen
+
+### WebSocket Events:
+- `join`: Player joins a room
+- `roomJoined`: Confirmation of room join
+- `playerJoined`: Another player joined
+- `startGame`: Game initialization
+- `setupComplete`: Player finished setup
+- `move`: Player made a move
+- `gameEnd`: Game over
+
+## Troubleshooting
+
+### WebSocket Connection Failed:
+- Ensure server is running (`npm start`)
+- Check that port 8080 is not in use
+- Verify firewall settings allow WebSocket connections
+
+### Game Not Loading:
+- Check browser console for errors
+- Ensure all files are in the same directory
+- Try using a local web server instead of file:// protocol
+
+### Network Play Issues:
+- Both players must connect to same server
+- For LAN play: Use server's local IP (e.g., `ws://192.168.1.x:8080`)
+- For internet play: Configure port forwarding or use a VPS
+
+## Future Enhancements
+- [ ] Add chat functionality
+- [ ] Implement game replay system
+- [ ] Add ranked matchmaking
+- [ ] Create lobby system with multiple rooms
+- [ ] Add sound effects and music
+- [ ] Implement different game modes
+- [ ] Add timer per turn
+- [ ] Create spectator mode
+
+## Credits
+Traditional Filipino strategy game adapted to modern web platform.
+
+## License
+MIT License
