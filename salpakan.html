@@ -909,176 +909,187 @@ useEffect(() => {
   if ((screen === 'room' || screen === 'onlineGame') && roomId) {
     console.log('=== INITIALIZING ROOM WEBSOCKET ===');
     console.log('Room ID:', roomId);
+    console.log('Current screen:', screen);
     
-    if (screen === 'room') {
-      WebSocketManager.disconnect();
+    const handleRoomJoined = (data) => {
+      console.log('=== handleRoomJoined TRIGGERED ===');
+      console.log('Received data:', JSON.stringify(data));
+      console.log('Setting playerId to:', data.playerId);
       
-      const handleRoomJoined = (data) => {
-        console.log('=== handleRoomJoined TRIGGERED ===');
-        console.log('Received data:', JSON.stringify(data));
-        console.log('Setting playerId to:', data.playerId);
+      const myId = data.playerId;
+      
+      playerIdRef.current = myId;
+      setPlayerId(myId);
+      
+      console.log('PlayerIdRef.current after setting:', playerIdRef.current);
+      
+      const normalizedPlayers = [null, null];
+      data.players.forEach(p => {
+        if (p === 1) normalizedPlayers[0] = 1;
+        if (p === 2) normalizedPlayers[1] = 2;
+      });
+      setPlayers(normalizedPlayers);
+      setConnectionStatus('connected');
+      
+      const myReady = data.readyStates ? data.readyStates[myId] || false : false;
+      const opponentId = myId === 1 ? 2 : 1;
+      const oppReady = data.readyStates ? data.readyStates[opponentId] || false : false;
+      
+      console.log('Setting ready states - My:', myReady, 'Opponent:', oppReady);
+      
+      setMyReadyState(myReady);
+      setOpponentReadyState(oppReady);
+      setIsRoomReady(myReady && oppReady);
+    };
+
+    const handlePlayerJoined = (data) => {
+      console.log('=== handlePlayerJoined TRIGGERED ===');
+      console.log('Current playerIdRef.current:', playerIdRef.current);
+      console.log('Received data:', JSON.stringify(data));
+      
+      const normalizedPlayers = [null, null];
+      data.players.forEach(p => {
+        if (p === 1) normalizedPlayers[0] = 1;
+        if (p === 2) normalizedPlayers[1] = 2;
+      });
+      setPlayers(normalizedPlayers);
+      
+      const currentPlayerId = playerIdRef.current;
+      console.log('Using playerId from ref:', currentPlayerId);
+      
+      if (data.readyStates && currentPlayerId) {
+        const myReady = data.readyStates[currentPlayerId] || false;
+        const opponentId = currentPlayerId === 1 ? 2 : 1;
+        const oppReady = data.readyStates[opponentId] || false;
         
-        const myId = data.playerId;
-        
-        playerIdRef.current = myId;
-        setPlayerId(myId);
-        
-        console.log('PlayerIdRef.current after setting:', playerIdRef.current);
-        
-        const normalizedPlayers = [null, null];
-        data.players.forEach(p => {
-          if (p === 1) normalizedPlayers[0] = 1;
-          if (p === 2) normalizedPlayers[1] = 2;
-        });
-        setPlayers(normalizedPlayers);
-        setConnectionStatus('connected');
-        
-        const myReady = data.readyStates ? data.readyStates[myId] || false : false;
-        const opponentId = myId === 1 ? 2 : 1;
-        const oppReady = data.readyStates ? data.readyStates[opponentId] || false : false;
-        
-        console.log('Setting ready states - My:', myReady, 'Opponent:', oppReady);
+        console.log('Updating ready states - My:', myReady, 'Opponent:', oppReady);
         
         setMyReadyState(myReady);
         setOpponentReadyState(oppReady);
         setIsRoomReady(myReady && oppReady);
-      };
+      } else {
+        console.warn('Cannot update ready states - playerId not set or no readyStates data');
+      }
+    };
 
-      const handlePlayerJoined = (data) => {
-        console.log('=== handlePlayerJoined TRIGGERED ===');
-        console.log('Current playerIdRef.current:', playerIdRef.current);
-        console.log('Received data:', JSON.stringify(data));
+    const handlePlayerReady = (data) => {
+      console.log('=== playerReady EVENT RECEIVED ===');
+      console.log('Full data:', JSON.stringify(data));
+      
+      const currentPlayerId = playerIdRef.current;
+      
+      if (!currentPlayerId) {
+        console.error('ERROR: No playerId set!');
+        return;
+      }
+      
+      if (data.readyStates) {
+        const opponentId = currentPlayerId === 1 ? 2 : 1;
+        const myReady = data.readyStates[currentPlayerId] === true;
+        const oppReady = data.readyStates[opponentId] === true;
         
-        const normalizedPlayers = [null, null];
-        data.players.forEach(p => {
-          if (p === 1) normalizedPlayers[0] = 1;
-          if (p === 2) normalizedPlayers[1] = 2;
+        console.log(`Updating states - My(${currentPlayerId}): ${myReady}, Opp(${opponentId}): ${oppReady}, AllReady: ${data.allReady}`);
+        
+        setMyReadyState(myReady);
+        setOpponentReadyState(oppReady);
+        setIsRoomReady(data.allReady === true);
+      }
+    };
+
+const handleGameStart = (data) => {
+  console.log('=== handleGameStart TRIGGERED ===');
+  console.log('Game starting with data:', JSON.stringify(data));
+  
+  setMode('2player');
+  setMultiplayerMode('online');
+  setBoard(GameLogic.initBoard());
+  const inv = {};
+  RANKS.forEach(({ r, count }) => { inv[r] = count; });
+  setInventory(inv);
+  setSetupPlayer(playerIdRef.current);
+  setPhase('setup');
+  setMsg('Deploy Your Forces');
+  setScreen('onlineGame');
+};
+
+    const handleOpponentDeploymentUpdate = (data) => {
+      console.log('=== handleOpponentDeploymentUpdate TRIGGERED ===');
+      const currentPlayerId = playerIdRef.current;
+      console.log('Current playerId:', currentPlayerId);
+      console.log('Opponent pieces placed:', data.piecesPlaced);
+      
+      setOpponentPiecesPlaced(data.piecesPlaced);
+      
+      if (data.board && currentPlayerId) {
+        setBoard(prevBoard => {
+          const mergedBoard = prevBoard.map((row, r) => 
+            row.map((cell, c) => {
+              if (data.board[r][c] && data.board[r][c].p !== currentPlayerId) {
+                return data.board[r][c];
+              }
+              return cell;
+            })
+          );
+          return mergedBoard;
         });
-        setPlayers(normalizedPlayers);
+      }
+    };
+
+    const handleOpponentSetupComplete = (data) => {
+      console.log('=== handleOpponentSetupComplete TRIGGERED ===');
+      const currentPlayerId = playerIdRef.current;
+      console.log('Current playerId:', currentPlayerId, 'Setup complete playerId:', data.playerId);
+      
+      if (data.playerId !== currentPlayerId) {
+        setMsg('Opponent ready! Finish your deployment.');
+      }
+    };
+
+    const handleBothPlayersReady = (data) => {
+      console.log('=== handleBothPlayersReady TRIGGERED ===');
+      const currentPlayerId = playerIdRef.current;
+      console.log('Both players ready, starting game. My playerId:', currentPlayerId);
+      
+      setPhase('playing');
+      setTurn(1);
+      setMsg(currentPlayerId === 1 ? 'Your Turn' : 'Opponent Turn');
+      setOpponentPiecesPlaced(0);
+    };
+
+    const handleMove = (data) => {
+      console.log('=== handleMove TRIGGERED ===');
+      const currentPlayerId = playerIdRef.current;
+      console.log('Move by player:', data.playerId, 'My playerId:', currentPlayerId);
+      
+      if (data.playerId !== currentPlayerId) {
+        setBoard(data.board);
+        setTurn(data.turn);
+        setLastMove(data.lastMove);
+        setDefeated(data.defeated);
         
-        const currentPlayerId = playerIdRef.current;
-        console.log('Using playerId from ref:', currentPlayerId);
-        
-        if (data.readyStates && currentPlayerId) {
-          const myReady = data.readyStates[currentPlayerId] || false;
-          const opponentId = currentPlayerId === 1 ? 2 : 1;
-          const oppReady = data.readyStates[opponentId] || false;
-          
-          console.log('Updating ready states - My:', myReady, 'Opponent:', oppReady);
-          
-          setMyReadyState(myReady);
-          setOpponentReadyState(oppReady);
-          setIsRoomReady(myReady && oppReady);
+        if (data.turn === currentPlayerId) {
+          setMsg('Your Turn');
         } else {
-          console.warn('Cannot update ready states - playerId not set or no readyStates data');
-        }
-      };
-
-      const handlePlayerReady = (data) => {
-        console.log('=== playerReady EVENT RECEIVED ===');
-        console.log('Full data:', JSON.stringify(data));
-        
-        const currentPlayerId = playerIdRef.current;
-        
-        if (!currentPlayerId) {
-          console.error('ERROR: No playerId set!');
-          return;
+          setMsg('Opponent Turn');
         }
         
-        if (data.readyStates) {
-          const opponentId = currentPlayerId === 1 ? 2 : 1;
-          const myReady = data.readyStates[currentPlayerId] === true;
-          const oppReady = data.readyStates[opponentId] === true;
-          
-          console.log(`Updating states - My(${currentPlayerId}): ${myReady}, Opp(${opponentId}): ${oppReady}, AllReady: ${data.allReady}`);
-          
-          setMyReadyState(myReady);
-          setOpponentReadyState(oppReady);
-          setIsRoomReady(data.allReady === true);
+        if (data.battleResult) {
+          setBattleResult(data.battleResult);
+          setShowBattleReport(true);
         }
-      };
+      }
+    };
 
-      const handleGameStart = (data) => {
-        console.log('=== handleGameStart TRIGGERED ===');
-        console.log('Game starting with data:', JSON.stringify(data));
-        setMsg('Deploy Your Forces');
-      };
+    const handleGameEnd = (data) => {
+      console.log('=== handleGameEnd TRIGGERED ===');
+      console.log('Game ended:', JSON.stringify(data));
+      setMsg(data.message);
+      setPhase('ended');
+    };
 
-      const handleOpponentDeploymentUpdate = (data) => {
-        console.log('=== handleOpponentDeploymentUpdate TRIGGERED ===');
-        const currentPlayerId = playerIdRef.current;
-        console.log('Current playerId:', currentPlayerId);
-        console.log('Opponent pieces placed:', data.piecesPlaced);
-        
-        setOpponentPiecesPlaced(data.piecesPlaced);
-        
-        if (data.board && currentPlayerId) {
-          setBoard(prevBoard => {
-            const mergedBoard = prevBoard.map((row, r) => 
-              row.map((cell, c) => {
-                if (data.board[r][c] && data.board[r][c].p !== currentPlayerId) {
-                  return data.board[r][c];
-                }
-                return cell;
-              })
-            );
-            return mergedBoard;
-          });
-        }
-      };
-
-      const handleOpponentSetupComplete = (data) => {
-        console.log('=== handleOpponentSetupComplete TRIGGERED ===');
-        const currentPlayerId = playerIdRef.current;
-        console.log('Current playerId:', currentPlayerId, 'Setup complete playerId:', data.playerId);
-        
-        if (data.playerId !== currentPlayerId) {
-          setMsg('Opponent ready! Finish your deployment.');
-        }
-      };
-
-      const handleBothPlayersReady = (data) => {
-        console.log('=== handleBothPlayersReady TRIGGERED ===');
-        const currentPlayerId = playerIdRef.current;
-        console.log('Both players ready, starting game. My playerId:', currentPlayerId);
-        
-        setPhase('playing');
-        setTurn(1);
-        setMsg(currentPlayerId === 1 ? 'Your Turn' : 'Opponent Turn');
-        setOpponentPiecesPlaced(0);
-      };
-
-      const handleMove = (data) => {
-        console.log('=== handleMove TRIGGERED ===');
-        const currentPlayerId = playerIdRef.current;
-        console.log('Move by player:', data.playerId, 'My playerId:', currentPlayerId);
-        
-        if (data.playerId !== currentPlayerId) {
-          setBoard(data.board);
-          setTurn(data.turn);
-          setLastMove(data.lastMove);
-          setDefeated(data.defeated);
-          
-          if (data.turn === currentPlayerId) {
-            setMsg('Your Turn');
-          } else {
-            setMsg('Opponent Turn');
-          }
-          
-          if (data.battleResult) {
-            setBattleResult(data.battleResult);
-            setShowBattleReport(true);
-          }
-        }
-      };
-
-      const handleGameEnd = (data) => {
-        console.log('=== handleGameEnd TRIGGERED ===');
-        console.log('Game ended:', JSON.stringify(data));
-        setMsg(data.message);
-        setPhase('ended');
-      };
-
+    if (screen === 'room') {
+      WebSocketManager.disconnect();
+      
       console.log('Registering all WebSocket handlers...');
       WebSocketManager.on('roomJoined', handleRoomJoined);
       WebSocketManager.on('playerJoined', handlePlayerJoined);
@@ -1094,6 +1105,14 @@ useEffect(() => {
       
       console.log('Connecting to WebSocket for room:', roomId);
       WebSocketManager.connect(roomId, null);
+    } else if (screen === 'onlineGame') {
+      console.log('Already connected, re-registering handlers for onlineGame screen...');
+      WebSocketManager.on('gameStart', handleGameStart);
+      WebSocketManager.on('opponentDeploymentUpdate', handleOpponentDeploymentUpdate);
+      WebSocketManager.on('opponentSetupComplete', handleOpponentSetupComplete);
+      WebSocketManager.on('bothPlayersReady', handleBothPlayersReady);
+      WebSocketManager.on('move', handleMove);
+      WebSocketManager.on('gameEnd', handleGameEnd);
     }
 
     return () => {
