@@ -143,13 +143,11 @@
       }
     };
 
-    // REPLACE THE ENTIRE WebSocketManager object (around line 118-170)
 const WebSocketManager = {
   ws: null,
   callbacks: {},
 
   connect: (roomId, playerId) => {
-    // CRITICAL: Disconnect any existing connection first
     if (WebSocketManager.ws) {
       console.log('Closing existing WebSocket connection');
       WebSocketManager.ws.close();
@@ -867,12 +865,10 @@ Connection: ${connectionStatus}
     console.log('Current screen:', screen);
   }, []);
 
-// REPLACE THE useEffect for screen === 'multiplayer' (around line 829-859)
 useEffect(() => {
   if (screen === 'multiplayer') {
     console.log('Multiplayer screen - connecting for room list');
     
-    // Use a SEPARATE WebSocket for room list - don't use WebSocketManager
     const host = window.location.hostname;
     const roomListWs = new WebSocket(`ws://${host}:8080`);
     
@@ -902,206 +898,209 @@ useEffect(() => {
     return () => {
       console.log('Closing room list WebSocket');
       clearInterval(interval);
-      roomListWs.close();
+      roomListWs.close(); 
     };
+  } else if (screen === 'room') {
+    console.log('Room screen - ensuring clean WebSocket state');
   }
 }, [screen]);
 
-// COMPLETE REPLACEMENT FOR THE useEffect STARTING AT LINE ~387
-// This effect handles all WebSocket events when in the room screen
 useEffect(() => {
-  if (screen === 'room' && roomId) {
+  if ((screen === 'room' || screen === 'onlineGame') && roomId) {
     console.log('=== INITIALIZING ROOM WEBSOCKET ===');
     console.log('Room ID:', roomId);
     
-    WebSocketManager.disconnect();
-
-    // Create handlers that will use the LATEST state values
-    const handleRoomJoined = (data) => {
-      console.log('=== handleRoomJoined TRIGGERED ===');
-      console.log('Received data:', JSON.stringify(data));
-      console.log('Setting playerId to:', data.playerId);
+    if (screen === 'room') {
+      WebSocketManager.disconnect();
       
-      const myId = data.playerId;
-      
-      // CRITICAL FIX: Set both ref AND state immediately
-      playerIdRef.current = myId;
-      setPlayerId(myId);
-      
-      console.log('PlayerIdRef.current after setting:', playerIdRef.current);
-      
-      const normalizedPlayers = [null, null];
-      data.players.forEach(p => {
-        if (p === 1) normalizedPlayers[0] = 1;
-        if (p === 2) normalizedPlayers[1] = 2;
-      });
-      setPlayers(normalizedPlayers);
-      setConnectionStatus('connected');
-      
-      const myReady = data.readyStates ? data.readyStates[myId] || false : false;
-      const opponentId = myId === 1 ? 2 : 1;
-      const oppReady = data.readyStates ? data.readyStates[opponentId] || false : false;
-      
-      console.log('Setting ready states - My:', myReady, 'Opponent:', oppReady);
-      
-      setMyReadyState(myReady);
-      setOpponentReadyState(oppReady);
-      setIsRoomReady(myReady && oppReady);
-    };
-
-    const handlePlayerJoined = (data) => {
-      console.log('=== handlePlayerJoined TRIGGERED ===');
-      console.log('Current playerIdRef.current:', playerIdRef.current);
-      console.log('Received data:', JSON.stringify(data));
-      
-      const normalizedPlayers = [null, null];
-      data.players.forEach(p => {
-        if (p === 1) normalizedPlayers[0] = 1;
-        if (p === 2) normalizedPlayers[1] = 2;
-      });
-      setPlayers(normalizedPlayers);
-      
-      // FIX: Get current playerId from ref
-      const currentPlayerId = playerIdRef.current;
-      console.log('Using playerId from ref:', currentPlayerId);
-      
-      if (data.readyStates && currentPlayerId) {
-        const myReady = data.readyStates[currentPlayerId] || false;
-        const opponentId = currentPlayerId === 1 ? 2 : 1;
-        const oppReady = data.readyStates[opponentId] || false;
+      const handleRoomJoined = (data) => {
+        console.log('=== handleRoomJoined TRIGGERED ===');
+        console.log('Received data:', JSON.stringify(data));
+        console.log('Setting playerId to:', data.playerId);
         
-        console.log('Updating ready states - My:', myReady, 'Opponent:', oppReady);
+        const myId = data.playerId;
+        
+        playerIdRef.current = myId;
+        setPlayerId(myId);
+        
+        console.log('PlayerIdRef.current after setting:', playerIdRef.current);
+        
+        const normalizedPlayers = [null, null];
+        data.players.forEach(p => {
+          if (p === 1) normalizedPlayers[0] = 1;
+          if (p === 2) normalizedPlayers[1] = 2;
+        });
+        setPlayers(normalizedPlayers);
+        setConnectionStatus('connected');
+        
+        const myReady = data.readyStates ? data.readyStates[myId] || false : false;
+        const opponentId = myId === 1 ? 2 : 1;
+        const oppReady = data.readyStates ? data.readyStates[opponentId] || false : false;
+        
+        console.log('Setting ready states - My:', myReady, 'Opponent:', oppReady);
         
         setMyReadyState(myReady);
         setOpponentReadyState(oppReady);
         setIsRoomReady(myReady && oppReady);
-      } else {
-        console.warn('Cannot update ready states - playerId not set or no readyStates data');
-      }
-    };
+      };
 
-const handlePlayerReady = (data) => {
-  console.log('=== playerReady EVENT RECEIVED ===');
-  console.log('Full data:', JSON.stringify(data));
-  
-  const currentPlayerId = playerIdRef.current;
-  
-  if (!currentPlayerId) {
-    console.error('ERROR: No playerId set!');
-    return;
-  }
-  
-  if (data.readyStates) {
-    const opponentId = currentPlayerId === 1 ? 2 : 1;
-    const myReady = data.readyStates[currentPlayerId] === true;
-    const oppReady = data.readyStates[opponentId] === true;
-    
-    console.log(`Updating states - My(${currentPlayerId}): ${myReady}, Opp(${opponentId}): ${oppReady}, AllReady: ${data.allReady}`);
-    
-    setMyReadyState(myReady);
-    setOpponentReadyState(oppReady);
-    setIsRoomReady(data.allReady === true);
-  }
-};
-    const handleGameStart = (data) => {
-      console.log('=== handleGameStart TRIGGERED ===');
-      console.log('Game starting with data:', JSON.stringify(data));
-      setMsg('Deploy Your Forces');
-    };
-
-    const handleOpponentDeploymentUpdate = (data) => {
-      console.log('=== handleOpponentDeploymentUpdate TRIGGERED ===');
-      const currentPlayerId = playerIdRef.current;
-      console.log('Current playerId:', currentPlayerId);
-      console.log('Opponent pieces placed:', data.piecesPlaced);
-      
-      setOpponentPiecesPlaced(data.piecesPlaced);
-      
-      if (data.board && currentPlayerId) {
-        setBoard(prevBoard => {
-          const mergedBoard = prevBoard.map((row, r) => 
-            row.map((cell, c) => {
-              if (data.board[r][c] && data.board[r][c].p !== currentPlayerId) {
-                return data.board[r][c];
-              }
-              return cell;
-            })
-          );
-          return mergedBoard;
+      const handlePlayerJoined = (data) => {
+        console.log('=== handlePlayerJoined TRIGGERED ===');
+        console.log('Current playerIdRef.current:', playerIdRef.current);
+        console.log('Received data:', JSON.stringify(data));
+        
+        const normalizedPlayers = [null, null];
+        data.players.forEach(p => {
+          if (p === 1) normalizedPlayers[0] = 1;
+          if (p === 2) normalizedPlayers[1] = 2;
         });
-      }
-    };
-
-    const handleOpponentSetupComplete = (data) => {
-      console.log('=== handleOpponentSetupComplete TRIGGERED ===');
-      const currentPlayerId = playerIdRef.current;
-      console.log('Current playerId:', currentPlayerId, 'Setup complete playerId:', data.playerId);
-      
-      if (data.playerId !== currentPlayerId) {
-        setMsg('Opponent ready! Finish your deployment.');
-      }
-    };
-
-    const handleBothPlayersReady = (data) => {
-      console.log('=== handleBothPlayersReady TRIGGERED ===');
-      const currentPlayerId = playerIdRef.current;
-      console.log('Both players ready, starting game. My playerId:', currentPlayerId);
-      
-      setPhase('playing');
-      setTurn(1);
-      setMsg(currentPlayerId === 1 ? 'Your Turn' : 'Opponent Turn');
-      setOpponentPiecesPlaced(0);
-    };
-
-    const handleMove = (data) => {
-      console.log('=== handleMove TRIGGERED ===');
-      const currentPlayerId = playerIdRef.current;
-      console.log('Move by player:', data.playerId, 'My playerId:', currentPlayerId);
-      
-      if (data.playerId !== currentPlayerId) {
-        setBoard(data.board);
-        setTurn(data.turn);
-        setLastMove(data.lastMove);
-        setDefeated(data.defeated);
+        setPlayers(normalizedPlayers);
         
-        if (data.turn === currentPlayerId) {
-          setMsg('Your Turn');
+        const currentPlayerId = playerIdRef.current;
+        console.log('Using playerId from ref:', currentPlayerId);
+        
+        if (data.readyStates && currentPlayerId) {
+          const myReady = data.readyStates[currentPlayerId] || false;
+          const opponentId = currentPlayerId === 1 ? 2 : 1;
+          const oppReady = data.readyStates[opponentId] || false;
+          
+          console.log('Updating ready states - My:', myReady, 'Opponent:', oppReady);
+          
+          setMyReadyState(myReady);
+          setOpponentReadyState(oppReady);
+          setIsRoomReady(myReady && oppReady);
         } else {
-          setMsg('Opponent Turn');
+          console.warn('Cannot update ready states - playerId not set or no readyStates data');
+        }
+      };
+
+      const handlePlayerReady = (data) => {
+        console.log('=== playerReady EVENT RECEIVED ===');
+        console.log('Full data:', JSON.stringify(data));
+        
+        const currentPlayerId = playerIdRef.current;
+        
+        if (!currentPlayerId) {
+          console.error('ERROR: No playerId set!');
+          return;
         }
         
-        if (data.battleResult) {
-          setBattleResult(data.battleResult);
-          setShowBattleReport(true);
+        if (data.readyStates) {
+          const opponentId = currentPlayerId === 1 ? 2 : 1;
+          const myReady = data.readyStates[currentPlayerId] === true;
+          const oppReady = data.readyStates[opponentId] === true;
+          
+          console.log(`Updating states - My(${currentPlayerId}): ${myReady}, Opp(${opponentId}): ${oppReady}, AllReady: ${data.allReady}`);
+          
+          setMyReadyState(myReady);
+          setOpponentReadyState(oppReady);
+          setIsRoomReady(data.allReady === true);
         }
-      }
-    };
+      };
 
-    const handleGameEnd = (data) => {
-      console.log('=== handleGameEnd TRIGGERED ===');
-      console.log('Game ended:', JSON.stringify(data));
-      setMsg(data.message);
-      setPhase('ended');
-    };
-    console.log('Registering all WebSocket handlers...');
-    WebSocketManager.on('roomJoined', handleRoomJoined);
-    WebSocketManager.on('playerJoined', handlePlayerJoined);
-    WebSocketManager.on('playerReady', handlePlayerReady);  // THIS IS CRITICAL
-    WebSocketManager.on('gameStart', handleGameStart);
-    WebSocketManager.on('opponentDeploymentUpdate', handleOpponentDeploymentUpdate);
-    WebSocketManager.on('opponentSetupComplete', handleOpponentSetupComplete);
-    WebSocketManager.on('bothPlayersReady', handleBothPlayersReady);
-    WebSocketManager.on('move', handleMove);
-    WebSocketManager.on('gameEnd', handleGameEnd);
-    
-    console.log('All handlers registered. Callbacks:', Object.keys(WebSocketManager.callbacks));
-    
-    // NOW connect after handlers are registered
-    console.log('Connecting to WebSocket for room:', roomId);
-    WebSocketManager.connect(roomId, null);
- return () => {
-      console.log('=== CLEANING UP ROOM WEBSOCKET ===');
-      WebSocketManager.disconnect();
+      const handleGameStart = (data) => {
+        console.log('=== handleGameStart TRIGGERED ===');
+        console.log('Game starting with data:', JSON.stringify(data));
+        setMsg('Deploy Your Forces');
+      };
+
+      const handleOpponentDeploymentUpdate = (data) => {
+        console.log('=== handleOpponentDeploymentUpdate TRIGGERED ===');
+        const currentPlayerId = playerIdRef.current;
+        console.log('Current playerId:', currentPlayerId);
+        console.log('Opponent pieces placed:', data.piecesPlaced);
+        
+        setOpponentPiecesPlaced(data.piecesPlaced);
+        
+        if (data.board && currentPlayerId) {
+          setBoard(prevBoard => {
+            const mergedBoard = prevBoard.map((row, r) => 
+              row.map((cell, c) => {
+                if (data.board[r][c] && data.board[r][c].p !== currentPlayerId) {
+                  return data.board[r][c];
+                }
+                return cell;
+              })
+            );
+            return mergedBoard;
+          });
+        }
+      };
+
+      const handleOpponentSetupComplete = (data) => {
+        console.log('=== handleOpponentSetupComplete TRIGGERED ===');
+        const currentPlayerId = playerIdRef.current;
+        console.log('Current playerId:', currentPlayerId, 'Setup complete playerId:', data.playerId);
+        
+        if (data.playerId !== currentPlayerId) {
+          setMsg('Opponent ready! Finish your deployment.');
+        }
+      };
+
+      const handleBothPlayersReady = (data) => {
+        console.log('=== handleBothPlayersReady TRIGGERED ===');
+        const currentPlayerId = playerIdRef.current;
+        console.log('Both players ready, starting game. My playerId:', currentPlayerId);
+        
+        setPhase('playing');
+        setTurn(1);
+        setMsg(currentPlayerId === 1 ? 'Your Turn' : 'Opponent Turn');
+        setOpponentPiecesPlaced(0);
+      };
+
+      const handleMove = (data) => {
+        console.log('=== handleMove TRIGGERED ===');
+        const currentPlayerId = playerIdRef.current;
+        console.log('Move by player:', data.playerId, 'My playerId:', currentPlayerId);
+        
+        if (data.playerId !== currentPlayerId) {
+          setBoard(data.board);
+          setTurn(data.turn);
+          setLastMove(data.lastMove);
+          setDefeated(data.defeated);
+          
+          if (data.turn === currentPlayerId) {
+            setMsg('Your Turn');
+          } else {
+            setMsg('Opponent Turn');
+          }
+          
+          if (data.battleResult) {
+            setBattleResult(data.battleResult);
+            setShowBattleReport(true);
+          }
+        }
+      };
+
+      const handleGameEnd = (data) => {
+        console.log('=== handleGameEnd TRIGGERED ===');
+        console.log('Game ended:', JSON.stringify(data));
+        setMsg(data.message);
+        setPhase('ended');
+      };
+
+      console.log('Registering all WebSocket handlers...');
+      WebSocketManager.on('roomJoined', handleRoomJoined);
+      WebSocketManager.on('playerJoined', handlePlayerJoined);
+      WebSocketManager.on('playerReady', handlePlayerReady);
+      WebSocketManager.on('gameStart', handleGameStart);
+      WebSocketManager.on('opponentDeploymentUpdate', handleOpponentDeploymentUpdate);
+      WebSocketManager.on('opponentSetupComplete', handleOpponentSetupComplete);
+      WebSocketManager.on('bothPlayersReady', handleBothPlayersReady);
+      WebSocketManager.on('move', handleMove);
+      WebSocketManager.on('gameEnd', handleGameEnd);
+      
+      console.log('All handlers registered. Callbacks:', Object.keys(WebSocketManager.callbacks));
+      
+      console.log('Connecting to WebSocket for room:', roomId);
+      WebSocketManager.connect(roomId, null);
+    }
+
+    return () => {
+      if (screen !== 'room' && screen !== 'onlineGame') {
+        console.log('=== CLEANING UP ROOM WEBSOCKET ===');
+        WebSocketManager.disconnect();
+      }
     };
   }
 }, [screen, roomId]);
@@ -1495,10 +1494,10 @@ const joinRoom = (id) => {
   setOpponentReadyState(false);
   setScreen('room');
 };
-// COMPLETE REPLACEMENT FOR toggleReady FUNCTION (around line ~730)
+
 const toggleReady = () => {
   const newReadyState = !myReadyState;
-  const currentPlayerId = playerIdRef.current || playerId; // Fallback to state if ref not set
+  const currentPlayerId = playerIdRef.current || playerId;
   
   console.log('=== TOGGLE READY CLICKED ===');
   console.log('Current ready state:', myReadyState);
@@ -1525,18 +1524,29 @@ const toggleReady = () => {
   WebSocketManager.send(message);
 };
 
-  const startOnlineGame = () => {
-    if (!isRoomReady) {
-      console.log('Cannot start game - room not ready');
-      return;
-    }
-    console.log('Starting online game...');
-    WebSocketManager.send({
-      type: 'startGame',
-      roomId
-    });
-    startSetup('2player', 'online');
-  };
+const startOnlineGame = () => {
+  if (!isRoomReady) {
+    console.log('Cannot start game - room not ready');
+    return;
+  }
+  console.log('Starting online game...');
+  WebSocketManager.send({
+    type: 'startGame',
+    roomId
+  });
+  
+  setMode('2player');
+  setMultiplayerMode('online');
+  setBoard(GameLogic.initBoard());
+  const inv = {};
+  RANKS.forEach(({ r, count }) => { inv[r] = count; });
+  setInventory(inv);
+  setSetupPlayer(playerId);
+  setPhase('setup');
+  setMsg('Deploy Your Forces');
+  setScreen('onlineGame');
+};
+
 
   if (screen === 'home') {
     return <HomeScreen 
@@ -1581,6 +1591,79 @@ const toggleReady = () => {
       connectionStatus={connectionStatus}
     />;
   }
+
+  if (screen === 'onlineGame') {
+  return (
+    <div className="h-screen w-screen flex flex-col lg:flex-row bg-black overflow-hidden">
+      <div className="order-1 flex-1 flex items-center justify-center p-1 md:p-2 bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 min-h-0">
+        <div className="w-full h-full max-w-[min(98vw,calc(98vh*1.125))] max-h-[min(98vw/1.125,98vh)] lg:max-w-[min(98vw,calc(98vh*1.125))] lg:max-h-[min(98vw/1.125,98vh)] flex flex-col rounded-lg shadow-[0_0_40px_rgba(212,175,55,0.3)] overflow-hidden border-4 border-yellow-700">
+          <GameBoard 
+            board={board}
+            phase={phase}
+            mode={mode}
+            multiplayerMode={multiplayerMode}
+            turn={turn}
+            setupPlayer={playerId}
+            sel={sel}
+            moves={moves}
+            lastMove={lastMove}
+            devMode={devMode}
+            playerId={playerId}
+            onCellClick={handleCellClick}
+          />
+        </div>
+      </div>
+
+      <Sidebar 
+        phase={phase}
+        mode={mode}
+        multiplayerMode={multiplayerMode}
+        msg={msg}
+        roomId={roomId}
+        inventory={inventory}
+        defeated={defeated}
+        setupPlayer={playerId}
+        turn={turn}
+        board={board}
+        devMode={devMode}
+        lastMove={lastMove}
+        opponentPiecesPlaced={opponentPiecesPlaced}
+        onFinishSetup={finishSetup}
+        onAutoSetup={handleAutoSetup}
+        onReset={resetGame}
+      />
+
+      {showPicker && (
+        <UnitPicker 
+          inventory={inventory}
+          setupPlayer={playerId}
+          onSelect={(rank) => placeOnBoard(showPicker[0], showPicker[1], rank)}
+          onCancel={() => setShowPicker(null)}
+        />
+      )}
+
+      {showBattleReport && battleResult && (
+        <BattleReportModal 
+          battleResult={battleResult}
+          showingBattleForPlayer={showingBattleForPlayer}
+          onContinue={confirmTurn}
+        />
+      )}
+
+      {showTurnLock && (
+        <TurnLockModal 
+          pausePhase={pausePhase}
+          setupPlayer={setupPlayer}
+          mode={mode}
+          multiplayerMode={multiplayerMode}
+          turn={turn}
+          battleResult={battleResult}
+          onConfirm={confirmTurn}
+        />
+      )}
+    </div>
+  );
+}
 
   return (
     <div className="h-screen w-screen flex flex-col lg:flex-row bg-black overflow-hidden">
