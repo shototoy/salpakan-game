@@ -151,7 +151,8 @@
         const host = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
           ? 'localhost' 
           : window.location.hostname;
-        const ws = new WebSocket(`ws://${host}:8080`);
+        const port = 8080;
+        const ws = new WebSocket(`ws://${host}:${port}`);
         WebSocketManager.ws = ws;
 
         ws.onopen = () => {
@@ -208,6 +209,18 @@
       const extractWidth = cellWidth - (padding * 2);
       const extractHeight = cellHeight - (padding * 2);
       
+      const [hasError, setHasError] = React.useState(false);
+      
+      if (hasError) {
+        return (
+          <div className={`w-full h-full flex items-center justify-center text-xs md:text-sm font-bold font-serif ${
+            player === 2 ? 'text-blue-400 bg-blue-900' : 'text-yellow-400 bg-yellow-900'
+          } rounded border-2 ${player === 2 ? 'border-blue-600' : 'border-yellow-600'}`}>
+            {rank}
+          </div>
+        );
+      }
+      
       return (
         <svg 
           viewBox={`${extractX} ${extractY} ${extractWidth} ${extractHeight}`}
@@ -222,6 +235,7 @@
             width="1200" 
             height="600"
             style={{ imageRendering: 'crisp-edges' }}
+            onError={() => setHasError(true)}
           />
         </svg>
       );
@@ -717,6 +731,43 @@
       const [players, setPlayers] = useState([null, null]);
       const [isRoomReady, setIsRoomReady] = useState(false);
       const [opponentBoard, setOpponentBoard] = useState(null);
+      const [availableRooms, setAvailableRooms] = useState([]);
+      const [connectionStatus, setConnectionStatus] = useState('disconnected');
+
+      useEffect(() => {
+        console.log('Salpakan game initialized');
+        console.log('Current screen:', screen);
+      }, []);
+
+      useEffect(() => {
+        if (screen === 'multiplayer') {
+          const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
+          
+          ws.onopen = () => {
+            console.log('Connected to server for room list');
+            ws.send(JSON.stringify({ type: 'getRooms' }));
+          };
+
+          ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'roomList') {
+              console.log('Available rooms:', data.rooms);
+              setAvailableRooms(data.rooms);
+            }
+          };
+
+          const interval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'getRooms' }));
+            }
+          }, 2000);
+
+          return () => {
+            clearInterval(interval);
+            ws.close();
+          };
+        }
+      }, [screen]);
 
       useEffect(() => {
         if (multiplayerMode === 'online' && roomId) {
@@ -1218,7 +1269,18 @@
       );
     }
 
-    ReactDOM.render(<Salpakan />, document.getElementById('root'));
+    ReactDOM.render(
+      <React.StrictMode>
+        <Salpakan />
+      </React.StrictMode>, 
+      document.getElementById('root'),
+      () => console.log('React app mounted successfully')
+    );
+
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+      console.error('Global error:', msg, 'at', url, lineNo, columnNo, error);
+      return false;
+    };
   </script>
 </body>
 </html>

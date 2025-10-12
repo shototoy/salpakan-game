@@ -9,10 +9,30 @@ function generatePlayerId() {
   return Math.random().toString(36).substring(2, 15);
 }
 
+function getRoomsList() {
+  const roomsList = [];
+  rooms.forEach((room, roomId) => {
+    roomsList.push({
+      id: roomId,
+      players: room.players.length,
+      isFull: room.players.length >= 2
+    });
+  });
+  return roomsList;
+}
+
 function broadcast(room, message, excludeWs = null) {
   room.players.forEach(player => {
     if (player.ws && player.ws !== excludeWs && player.ws.readyState === WebSocket.OPEN) {
       player.ws.send(JSON.stringify(message));
+    }
+  });
+}
+
+function broadcastToAll(message) {
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(message));
     }
   });
 }
@@ -22,11 +42,24 @@ wss.on('connection', (ws) => {
   let currentRoom = null;
   let currentPlayerId = null;
 
+  ws.send(JSON.stringify({
+    type: 'roomList',
+    rooms: getRoomsList()
+  }));
+
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
       
       switch (data.type) {
+        case 'getRooms': {
+          ws.send(JSON.stringify({
+            type: 'roomList',
+            rooms: getRoomsList()
+          }));
+          break;
+        }
+        
         case 'join': {
           const { roomId } = data;
           
@@ -36,6 +69,7 @@ wss.on('connection', (ws) => {
               players: [],
               gameState: null
             });
+            console.log(`Created new room: ${roomId}`);
           }
           
           const room = rooms.get(roomId);
@@ -61,15 +95,20 @@ wss.on('connection', (ws) => {
             type: 'roomJoined',
             roomId,
             playerId: playerNumber,
-            players: room.players.map(p => p ? p.number : null)
+            players: room.players.map(p => p.number)
           }));
           
           broadcast(room, {
             type: 'playerJoined',
-            players: room.players.map(p => p ? p.number : null)
+            players: room.players.map(p => p.number)
+          }, ws);
+          
+          broadcastToAll({
+            type: 'roomList',
+            rooms: getRoomsList()
           });
           
-          console.log(`Player ${playerId} joined room ${roomId} as Player ${playerNumber}`);
+          console.log(`Player ${playerId} joined room ${roomId} as Player ${playerNumber} (${room.players.length}/2)`);
           break;
         }
         
@@ -78,7 +117,8 @@ wss.on('connection', (ws) => {
           const room = rooms.get(roomId);
           
           if (!room || room.players.length !== 2) {
-            ws.send(JSON.stringify({ type: 'error', message: 'Cannot start game' }));
+            ws.send(JSON.stringify({ type: 'error', message: 'Cannot start game - need 2 players' }));
+            console.log(`Cannot start game in room ${roomId}: only ${room?.players.length || 0} players`);
             return;
           }
           
@@ -161,17 +201,24 @@ wss.on('connection', (ws) => {
     
     if (currentRoom && rooms.has(currentRoom)) {
       const room = rooms.get(currentRoom);
+      const leavingPlayer = room.players.find(p => p.ws === ws);
       room.players = room.players.filter(p => p.ws !== ws);
       
       if (room.players.length === 0) {
         rooms.delete(currentRoom);
         console.log(`Room ${currentRoom} deleted (empty)`);
       } else {
+        console.log(`Player left room ${currentRoom}. Remaining: ${room.players.length}`);
         broadcast(room, {
           type: 'playerLeft',
-          players: room.players.map(p => p ? p.number : null)
+          players: room.players.map(p => p.number)
         });
       }
+      
+      broadcastToAll({
+        type: 'roomList',
+        rooms: getRoomsList()
+      });
     }
   });
 
@@ -181,4 +228,4 @@ wss.on('connection', (ws) => {
 });
 
 console.log(`WebSocket server running on ws://localhost:${PORT}`);
-console.log('Waiting for connections...');
+console.log('Waiting for connections...');n
