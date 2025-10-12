@@ -228,4 +228,4 @@ wss.on('connection', (ws) => {
 });
 
 console.log(`WebSocket server running on ws://localhost:${PORT}`);
-console.log('Waiting for connections...');n
+console.log('Waiting for connections...');

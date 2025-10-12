@@ -148,20 +148,21 @@
       callbacks: {},
 
       connect: (roomId, playerId) => {
-        const host = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-          ? 'localhost' 
-          : window.location.hostname;
+        const host = window.location.hostname;
         const port = 8080;
+
+        console.log(`Connecting to WebSocket: ws://${host}:${port}`);
         const ws = new WebSocket(`ws://${host}:${port}`);
         WebSocketManager.ws = ws;
 
         ws.onopen = () => {
-          console.log('Connected to server');
+          console.log('WebSocket connected, joining room:', roomId);
           ws.send(JSON.stringify({ type: 'join', roomId, playerId }));
         };
 
         ws.onmessage = (event) => {
           const data = JSON.parse(event.data);
+          console.log('WebSocket message received:', data);
           const callback = WebSocketManager.callbacks[data.type];
           if (callback) callback(data);
         };
@@ -171,7 +172,7 @@
         };
 
         ws.onclose = () => {
-          console.log('Disconnected from server');
+          console.log('WebSocket disconnected');
         };
 
         return ws;
@@ -179,7 +180,10 @@
 
       send: (data) => {
         if (WebSocketManager.ws && WebSocketManager.ws.readyState === WebSocket.OPEN) {
+          console.log('Sending WebSocket message:', data);
           WebSocketManager.ws.send(JSON.stringify(data));
+        } else {
+          console.error('WebSocket not connected, cannot send:', data);
         }
       },
 
@@ -192,6 +196,7 @@
           WebSocketManager.ws.close();
           WebSocketManager.ws = null;
         }
+        WebSocketManager.callbacks = {};
       }
     };
 
@@ -279,7 +284,7 @@
       );
     }
 
-    function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roomId, setRoomId }) {
+    function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roomId, setRoomId, availableRooms }) {
       return (
         <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
           <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700">
@@ -300,12 +305,31 @@
                 ➕ CREATE ROOM
               </button>
               
+              {availableRooms && availableRooms.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-yellow-600 font-serif text-sm mb-2 text-center">Available Rooms:</p>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {availableRooms.map(room => (
+                      <button 
+                        key={room.id}
+                        onClick={() => onJoinRoom(room.id)}
+                        className="w-full px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-yellow-400 rounded border border-yellow-800 font-mono text-left transition-all">
+                        <div className="flex justify-between items-center">
+                          <span className="text-lg">{room.id}</span>
+                          <span className="text-xs text-yellow-600">{room.players}/2 players</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-yellow-800"></div>
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-zinc-900 text-yellow-600 font-serif">or</span>
+                  <span className="px-2 bg-zinc-900 text-yellow-600 font-serif">or enter code</span>
                 </div>
               </div>
               
@@ -331,7 +355,19 @@
       );
     }
 
-    function RoomWaiting({ roomId, onLeave, onStart, players, isReady }) {
+    function RoomWaiting({ roomId, onLeave, onStart, players, isReady, connectionStatus }) {
+      const [debugInfo, setDebugInfo] = React.useState('');
+      
+      React.useEffect(() => {
+        const info = `
+Players Array: ${JSON.stringify(players)}
+Player Count: ${players.filter(p => p !== null && p !== undefined).length}
+Is Ready: ${isReady}
+Connection: ${connectionStatus}
+        `;
+        setDebugInfo(info);
+      }, [players, isReady, connectionStatus]);
+      
       return (
         <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
           <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700 text-center">
@@ -347,30 +383,50 @@
               <p className="text-yellow-600 text-sm font-serif mb-2">Room ID</p>
               <p className="text-yellow-400 text-4xl font-mono font-bold tracking-widest">{roomId}</p>
               <p className="text-yellow-700 text-xs font-serif italic mt-2">Share this code with your opponent</p>
+              <div className={`mt-3 text-xs font-serif ${connectionStatus === 'connected' ? 'text-green-500' : connectionStatus === 'connecting' ? 'text-yellow-500' : 'text-red-500'}`}>
+                {connectionStatus === 'connected' ? '✓ Connected' : connectionStatus === 'connecting' ? '⏳ Connecting...' : '✗ Disconnected'}
+              </div>
             </div>
             
             <div className="bg-zinc-800 rounded-lg p-4 mb-6 border-2 border-yellow-900">
-              <p className="text-yellow-500 text-sm font-serif mb-3">Players</p>
+              <p className="text-yellow-500 text-sm font-serif mb-3">Players ({players.filter(p => p !== null && p !== undefined).length}/2)</p>
               <div className="space-y-2">
-                {players.map((player, idx) => (
-                  <div key={idx} className={`bg-black rounded px-3 py-2 flex items-center justify-between ${!player ? 'opacity-50' : ''}`}>
-                    <span className={player ? 'text-yellow-400' : 'text-yellow-600'}>{player ? `Commander ${idx + 1}` : `Commander ${idx + 1}`}</span>
-                    <span className={player ? 'text-green-500' : 'text-yellow-700'}>{player ? '✓ Ready' : '⏳ Waiting...'}</span>
-                  </div>
-                ))}
+                {[0, 1].map((idx) => {
+                  const hasPlayer = players[idx] !== null && players[idx] !== undefined;
+                  return (
+                    <div key={idx} className={`bg-black rounded px-3 py-2 flex items-center justify-between ${!hasPlayer ? 'opacity-50' : ''}`}>
+                      <span className={hasPlayer ? 'text-yellow-400 font-serif' : 'text-yellow-600 font-serif'}>
+                        Commander {idx + 1} {hasPlayer ? `(P${players[idx]})` : ''}
+                      </span>
+                      <span className={hasPlayer ? 'text-green-500 text-sm' : 'text-yellow-700 text-sm'}>
+                        {hasPlayer ? '✓ Ready' : '⏳ Waiting...'}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
+            </div>
+            
+            <div className="bg-purple-950 rounded-lg p-3 mb-4 border border-purple-800 text-left">
+              <p className="text-purple-400 text-xs font-mono whitespace-pre">{debugInfo}</p>
             </div>
             
             <button 
               onClick={onStart}
-              disabled={!isReady}
-              className="w-full px-6 py-3 bg-gradient-to-r from-emerald-700 to-emerald-800 text-white text-lg font-serif font-bold rounded border-2 border-emerald-600 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+              disabled={!isReady || connectionStatus !== 'connected'}
+              className="w-full px-6 py-3 bg-gradient-to-r from-emerald-700 to-emerald-800 text-white text-lg font-serif font-bold rounded border-2 border-emerald-600 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:from-emerald-600 hover:to-emerald-700">
               ⚔ START BATTLE
             </button>
             
             <p className="text-xs text-yellow-700 mt-4 italic font-serif">
-              {isReady ? 'Both players ready!' : 'Waiting for opponent to join...'}
+              {isReady ? 'Both players ready! Click START BATTLE' : 'Waiting for opponent to join...'}
             </p>
+            
+            {connectionStatus !== 'connected' && (
+              <p className="text-xs text-red-500 mt-2 font-serif">
+                Connection issue - Check if server is running on port 8080
+              </p>
+            )}
           </div>
         </div>
       );
@@ -704,7 +760,6 @@
         </div>
       );
     }
-
     function Salpakan() {
       const [screen, setScreen] = useState('home');
       const [board, setBoard] = useState(GameLogic.initBoard());
@@ -741,7 +796,9 @@
 
       useEffect(() => {
         if (screen === 'multiplayer') {
-          const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
+          console.log('Multiplayer screen - connecting for room list');
+          const host = window.location.hostname;
+          const ws = new WebSocket(`ws://${host}:8080`);
           
           ws.onopen = () => {
             console.log('Connected to server for room list');
@@ -751,9 +808,13 @@
           ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === 'roomList') {
-              console.log('Available rooms:', data.rooms);
-              setAvailableRooms(data.rooms);
+              console.log('Received room list:', data.rooms);
+              setAvailableRooms(data.rooms.filter(room => !room.isFull));
             }
+          };
+
+          ws.onerror = (error) => {
+            console.error('Room list WebSocket error:', error);
           };
 
           const interval = setInterval(() => {
@@ -770,22 +831,34 @@
       }, [screen]);
 
       useEffect(() => {
-        if (multiplayerMode === 'online' && roomId) {
+        if (screen === 'room' && roomId) {
+          console.log('Setting up WebSocket listeners for room:', roomId);
+          
           WebSocketManager.on('roomJoined', (data) => {
+            console.log('Room joined event received:', data);
             setPlayerId(data.playerId);
             setPlayers(data.players);
+            setConnectionStatus('connected');
+            const readyCount = data.players.filter(p => p !== null && p !== undefined).length;
+            setIsRoomReady(readyCount === 2);
+            console.log('Players after join:', data.players, 'Ready:', readyCount === 2);
           });
 
           WebSocketManager.on('playerJoined', (data) => {
+            console.log('Player joined event received:', data);
             setPlayers(data.players);
-            setIsRoomReady(data.players.filter(p => p).length === 2);
+            const readyCount = data.players.filter(p => p !== null && p !== undefined).length;
+            setIsRoomReady(readyCount === 2);
+            console.log('Players after player joined:', data.players, 'Ready:', readyCount === 2);
           });
 
           WebSocketManager.on('gameStart', (data) => {
+            console.log('Game starting:', data);
             setMsg('Deploy Your Forces');
           });
 
           WebSocketManager.on('setupComplete', (data) => {
+            console.log('Setup complete from player:', data.playerId);
             if (data.playerId !== playerId) {
               setOpponentBoard(data.board);
             }
@@ -807,14 +880,12 @@
             setMsg(data.message);
             setPhase('ended');
           });
-        }
 
-        return () => {
-          if (multiplayerMode === 'online') {
-            WebSocketManager.disconnect();
-          }
-        };
-      }, [multiplayerMode, roomId, playerId]);
+          return () => {
+            console.log('Cleaning up WebSocket listeners');
+          };
+        }
+      }, [screen, roomId]);
 
       const resetGame = useCallback(() => {
         setScreen('home');
@@ -1152,18 +1223,34 @@
       const createRoom = () => {
         const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
         setRoomId(newRoomId);
-        WebSocketManager.connect(newRoomId, null);
+        setConnectionStatus('connecting');
+        setPlayers([null, null]);
+        setIsRoomReady(false);
+        console.log('Creating room:', newRoomId);
         setScreen('room');
+        setTimeout(() => {
+          WebSocketManager.connect(newRoomId, null);
+        }, 100);
       };
 
       const joinRoom = (id) => {
         setRoomId(id);
-        WebSocketManager.connect(id, null);
+        setConnectionStatus('connecting');
+        setPlayers([null, null]);
+        setIsRoomReady(false);
+        console.log('Joining room:', id);
         setScreen('room');
+        setTimeout(() => {
+          WebSocketManager.connect(id, null);
+        }, 100);
       };
 
       const startOnlineGame = () => {
-        if (!isRoomReady) return;
+        if (!isRoomReady) {
+          console.log('Cannot start game - room not ready');
+          return;
+        }
+        console.log('Starting online game...');
         WebSocketManager.send({
           type: 'startGame',
           roomId
@@ -1186,16 +1273,18 @@
           onJoinRoom={joinRoom}
           roomId={roomId}
           setRoomId={setRoomId}
+          availableRooms={availableRooms}
         />;
       }
 
       if (screen === 'room') {
         return <RoomWaiting 
           roomId={roomId}
-          onLeave={() => { setScreen('multiplayer'); setRoomId(''); WebSocketManager.disconnect(); }}
+          onLeave={() => { setScreen('multiplayer'); setRoomId(''); setConnectionStatus('disconnected'); WebSocketManager.disconnect(); }}
           onStart={startOnlineGame}
           players={players}
           isReady={isRoomReady}
+          connectionStatus={connectionStatus}
         />;
       }
 
@@ -1268,7 +1357,6 @@
         </div>
       );
     }
-
     ReactDOM.render(
       <React.StrictMode>
         <Salpakan />
