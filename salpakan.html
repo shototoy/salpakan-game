@@ -148,7 +148,10 @@
       callbacks: {},
 
       connect: (roomId, playerId) => {
-        const ws = new WebSocket(`ws://localhost:8080`);
+        const host = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+          ? 'localhost' 
+          : window.location.hostname;
+        const ws = new WebSocket(`ws://${host}:8080`);
         WebSocketManager.ws = ws;
 
         ws.onopen = () => {
