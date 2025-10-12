@@ -5,10 +5,6 @@ const wss = new WebSocket.Server({ port: PORT });
 
 const rooms = new Map();
 
-function generatePlayerId() {
-  return Math.random().toString(36).substring(2, 15);
-}
-
 function getRoomsList() {
   const roomsList = [];
   rooms.forEach((room, roomId) => {
@@ -67,7 +63,8 @@ wss.on('connection', (ws) => {
             rooms.set(roomId, {
               id: roomId,
               players: [],
-              gameState: null
+              setupComplete: { 1: false, 2: false },
+              boards: { 1: null, 2: null }
             });
             console.log(`Created new room: ${roomId}`);
           }
@@ -79,17 +76,17 @@ wss.on('connection', (ws) => {
             return;
           }
           
-          const playerId = generatePlayerId();
-          currentPlayerId = playerId;
+          const playerNumber = room.players.length + 1;
+          currentPlayerId = playerNumber;
           currentRoom = roomId;
           
-          const playerNumber = room.players.length + 1;
           room.players.push({
-            id: playerId,
+            id: playerNumber,
             ws: ws,
-            number: playerNumber,
-            ready: false
+            number: playerNumber
           });
+          
+          console.log(`Player ${playerNumber} joined room ${roomId} (${room.players.length}/2)`);
           
           ws.send(JSON.stringify({
             type: 'roomJoined',
@@ -108,7 +105,6 @@ wss.on('connection', (ws) => {
             rooms: getRoomsList()
           });
           
-          console.log(`Player ${playerId} joined room ${roomId} as Player ${playerNumber} (${room.players.length}/2)`);
           break;
         }
         
@@ -124,10 +120,25 @@ wss.on('connection', (ws) => {
           
           broadcast(room, {
             type: 'gameStart',
-            message: 'Game starting...'
+            message: 'Game starting - deploy your forces!'
           });
           
           console.log(`Game started in room ${roomId}`);
+          break;
+        }
+        
+        case 'deploymentUpdate': {
+          const { roomId, playerId, piecesPlaced } = data;
+          const room = rooms.get(roomId);
+          
+          if (!room) return;
+          
+          broadcast(room, {
+            type: 'opponentDeploymentUpdate',
+            playerId,
+            piecesPlaced
+          }, ws);
+          
           break;
         }
         
@@ -137,18 +148,26 @@ wss.on('connection', (ws) => {
           
           if (!room) return;
           
-          const player = room.players.find(p => p.number === playerId);
-          if (player) {
-            player.ready = true;
-            player.board = board;
-          }
+          room.setupComplete[playerId] = true;
+          room.boards[playerId] = board;
+          
+          console.log(`Player ${playerId} setup complete in room ${roomId}`);
+          console.log(`Setup status: P1=${room.setupComplete[1]}, P2=${room.setupComplete[2]}`);
           
           broadcast(room, {
-            type: 'setupComplete',
+            type: 'opponentSetupComplete',
             playerId
           }, ws);
           
-          console.log(`Player ${playerId} setup complete in room ${roomId}`);
+          if (room.setupComplete[1] && room.setupComplete[2]) {
+            console.log('Both players ready, starting game');
+            broadcast(room, {
+              type: 'bothPlayersReady',
+              message: 'Both players ready, game starting!',
+              startingPlayer: 1
+            });
+          }
+          
           break;
         }
         
@@ -157,6 +176,8 @@ wss.on('connection', (ws) => {
           const room = rooms.get(roomId);
           
           if (!room) return;
+          
+          console.log(`Move by Player ${playerId} in room ${roomId}, next turn: ${turn}`);
           
           broadcast(room, {
             type: 'move',
@@ -168,7 +189,6 @@ wss.on('connection', (ws) => {
             defeated
           }, ws);
           
-          console.log(`Move made by Player ${playerId} in room ${roomId}`);
           break;
         }
         
@@ -201,7 +221,6 @@ wss.on('connection', (ws) => {
     
     if (currentRoom && rooms.has(currentRoom)) {
       const room = rooms.get(currentRoom);
-      const leavingPlayer = room.players.find(p => p.ws === ws);
       room.players = room.players.filter(p => p.ws !== ws);
       
       if (room.players.length === 0) {
