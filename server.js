@@ -234,20 +234,31 @@ wss.on('connection', (ws) => {
         case 'move': {
           const { roomId, playerId, board, turn, lastMove, battleResult, defeated } = data;
           const room = rooms.get(roomId);
-          
           if (!room) return;
-          
           console.log(`Move by Player ${playerId} in room ${roomId}, next turn: ${turn}`);
-          
-          broadcast(room, {
-            type: 'move',
-            playerId,
-            board,
-            turn,
-            lastMove,
-            battleResult,
-            defeated
-          }, ws);
+          room.boards[playerId] = board;
+          room.players.forEach(player => {
+            if (player.ws && player.ws.readyState === WebSocket.OPEN) {
+              const playerView = board.map(row => 
+                row.map(cell => {
+                  if (cell && cell.p !== player.number) {
+                    return { ...cell, r: '?' };
+                  }
+                  return cell;
+                })
+              );
+              
+              player.ws.send(JSON.stringify({
+                type: 'move',
+                playerId,
+                board: playerView,
+                turn,
+                lastMove,
+                battleResult,
+                defeated
+              }));
+            }
+          });
           
           break;
         }
