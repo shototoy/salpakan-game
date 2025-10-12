@@ -28,7 +28,7 @@
     };
 
     const RANKS = [
-      { r: 'PVT', count: 6, tileX: 0, tileY: 0 },
+      { r: 'PVT', count: 5, tileX: 0, tileY: 0 },
       { r: 'SGT', count: 2, tileX: 1, tileY: 0 },
       { r: '2LT', count: 1, tileX: 2, tileY: 0 },
       { r: '1LT', count: 1, tileX: 3, tileY: 0 },
@@ -65,12 +65,22 @@
 
     const autoSetup = (b, p) => {
       const nb = b.map(row => [...row]);
-      const pieces = createPieces(p).sort(() => Math.random() - 0.5);
       const rows = p === 1 ? [7, 6, 5] : [0, 1, 2];
-      let idx = 0;
+      
       for (const r of rows) {
         for (let c = 0; c < 9; c++) {
-          if (idx < 21) nb[r][c] = pieces[idx++];
+          nb[r][c] = null;
+        }
+      }
+      
+      const pieces = createPieces(p).sort(() => Math.random() - 0.5);
+      let idx = 0;
+      
+      for (const r of rows) {
+        for (let c = 0; c < 9; c++) {
+          if (idx < pieces.length) {
+            nb[r][c] = pieces[idx++];
+          }
         }
       }
       return nb;
@@ -100,25 +110,38 @@
           if (b[r][c]?.p === 2) pieces.push([r, c]);
         }
       }
+      
+      if (pieces.length === 0) return null;
+      
       const moves = [];
       pieces.forEach(([r, c]) => {
-        validMoves(b, r, c).forEach(to => {
+        const piece = b[r][c];
+        if (!piece) return;
+        
+        const possibleMoves = validMoves(b, r, c);
+        possibleMoves.forEach(to => {
           let score = Math.random() * 10;
-          const piece = b[r][c];
-          if (b[to[0]][to[1]]) {
-            const result = battle(piece, b[to[0]][to[1]]);
+          const target = b[to[0]][to[1]];
+          
+          if (target) {
+            const result = battle(piece, target);
             score += result === 'win' ? 50 : result === 'draw' ? 20 : -30;
           }
+          
           if (to[0] === 7) score += 30;
-          if (piece.r === 'FLAG') score -= 50;
+          if (piece.r === 'FLAG') score -= 100;
+          
           moves.push({ from: [r, c], to, score });
         });
       });
+      
+      if (moves.length === 0) return null;
+      
       moves.sort((a, b) => b.score - a.score);
-      return moves.length > 0 ? { from: moves[0].from, to: moves[0].to } : null;
+      return { from: moves[0].from, to: moves[0].to };
     };
 
-  function PieceIcon({ rank, player }) {
+    function PieceIcon({ rank, player }) {
       const rankData = RANKS.find(r => r.r === rank);
       if (!rankData) return <span className="text-yellow-600 font-bold text-2xl">{rank}</span>;
       
@@ -143,6 +166,7 @@
         </svg>
       );
     }
+
     function Salpakan() {
       const [board, setBoard] = useState(initBoard());
       const [phase, setPhase] = useState('setup');
@@ -157,6 +181,11 @@
       const [showPicker, setShowPicker] = useState(null);
       const [showTurnLock, setShowTurnLock] = useState(false);
       const [pausePhase, setPausePhase] = useState(false);
+      const [battleResult, setBattleResult] = useState(null);
+      const [defeated, setDefeated] = useState({ 1: [], 2: [] });
+      const [showBattleReport, setShowBattleReport] = useState(false);
+      const [lastMove, setLastMove] = useState(null);
+      const [showingBattleForPlayer, setShowingBattleForPlayer] = useState(null);
 
       const startSetup = (m) => {
         setMode(m);
@@ -193,6 +222,22 @@
       };
 
       const confirmTurn = () => {
+        if (showBattleReport) {
+          setShowBattleReport(false);
+          
+          if (showingBattleForPlayer && turn === showingBattleForPlayer && showingBattleForPlayer === battleResult.player) {
+            const nextTurn = turn === 1 ? 2 : 1;
+            setTurn(nextTurn);
+            setShowingBattleForPlayer(nextTurn);
+            setShowTurnLock(true);
+          } else if (showingBattleForPlayer && turn === showingBattleForPlayer && showingBattleForPlayer !== battleResult.player) {
+            setShowingBattleForPlayer(null);
+            setBattleResult(null);
+            setShowTurnLock(false);
+          }
+          return;
+        }
+        
         if (pausePhase && setupPlayer === 1 && mode === '2player') {
           setSetupPlayer(2);
           const inv = {};
@@ -207,6 +252,9 @@
           setMsg('Imperium Commander 1');
           setShowTurnLock(false);
           setPausePhase(false);
+        } else if (battleResult && showingBattleForPlayer !== null) {
+          setShowTurnLock(false);
+          setShowBattleReport(true);
         } else {
           setShowTurnLock(false);
         }
@@ -231,8 +279,8 @@
       };
 
       const handleSetupClick = (r, c) => {
-        const rows = setupPlayer === 1 ? [7, 6, 5] : [0, 1, 2];
-        if (!rows.includes(r)) return;
+        const allowedRows = setupPlayer === 1 ? [7, 6, 5] : [0, 1, 2];
+        if (!allowedRows.includes(r)) return;
         
         if (board[r][c]) {
           removeFromBoard(r, c);
@@ -254,28 +302,54 @@
           const validMove = moves.some(([mr, mc]) => mr === r && mc === c);
           
           if (validMove) {
+            setLastMove(null);
+            
             const nb = board.map(row => [...row]);
             const attacker = nb[sr][sc];
             const defender = nb[r][c];
+            const newDefeated = { ...defeated };
             
             if (defender) {
               const res = battle(attacker, defender);
+              
               if (res === 'win') {
                 nb[r][c] = attacker;
                 nb[sr][sc] = null;
+                newDefeated[defender.p] = [...newDefeated[defender.p], defender.r];
+                setBattleResult({ attacker: attacker.r, defender: defender.r, result: 'win', player: turn });
+                
                 if (defender.r === 'FLAG') {
                   setMsg(`Victory - Commander ${turn}!`);
                   setBoard(nb);
                   setMoves([]);
                   setSel(null);
+                  setDefeated(newDefeated);
+                  setPhase('ended');
                   return;
                 }
               } else if (res === 'lose') {
                 nb[sr][sc] = null;
+                newDefeated[attacker.p] = [...newDefeated[attacker.p], attacker.r];
+                setBattleResult({ attacker: attacker.r, defender: defender.r, result: 'lose', player: turn });
+                
+                if (attacker.r === 'FLAG') {
+                  const winner = turn === 1 ? 2 : 1;
+                  setMsg(`Victory - Commander ${winner}!`);
+                  setBoard(nb);
+                  setMoves([]);
+                  setSel(null);
+                  setDefeated(newDefeated);
+                  setPhase('ended');
+                  return;
+                }
               } else {
                 nb[r][c] = null;
                 nb[sr][sc] = null;
+                newDefeated[attacker.p] = [...newDefeated[attacker.p], attacker.r];
+                newDefeated[defender.p] = [...newDefeated[defender.p], defender.r];
+                setBattleResult({ attacker: attacker.r, defender: defender.r, result: 'draw', player: turn });
               }
+              setDefeated(newDefeated);
             } else {
               nb[r][c] = attacker;
               nb[sr][sc] = null;
@@ -288,27 +362,50 @@
             if (mode === 'ai') {
               setTurn(2);
               setMsg('Enemy Calculating...');
+              const currentDefeated = { ...newDefeated };
               setTimeout(() => {
                 const aiM = aiMove(nb);
-                if (!aiM) { setMsg('Imperial Victory!'); return; }
+                if (!aiM) { 
+                  setMsg('Imperial Victory!'); 
+                  setTurn(1);
+                  return; 
+                }
                 
                 const nb2 = nb.map(row => [...row]);
                 const [ar, ac] = aiM.from;
                 const [tr, tc] = aiM.to;
                 const aiA = nb2[ar][ac];
+                
+                if (!aiA) {
+                  setTurn(1);
+                  setMsg('Engage the Enemy');
+                  return;
+                }
+                
                 const def = nb2[tr][tc];
+                const newDefeated2 = { ...currentDefeated };
                 
                 if (def) {
                   const res = battle(aiA, def);
                   if (res === 'win') {
                     nb2[tr][tc] = aiA;
                     nb2[ar][ac] = null;
-                    if (def.r === 'FLAG') { setMsg('Defeat - Enemy Prevails'); setBoard(nb2); return; }
+                    newDefeated2[def.p] = [...newDefeated2[def.p], def.r];
+                    if (def.r === 'FLAG') { 
+                      setMsg('Defeat - Enemy Prevails'); 
+                      setBoard(nb2); 
+                      setDefeated(newDefeated2); 
+                      setPhase('ended');
+                      return; 
+                    }
                   } else if (res === 'lose') {
                     nb2[ar][ac] = null;
+                    newDefeated2[aiA.p] = [...newDefeated2[aiA.p], aiA.r];
                   } else {
                     nb2[tr][tc] = null;
                     nb2[ar][ac] = null;
+                    newDefeated2[aiA.p] = [...newDefeated2[aiA.p], aiA.r];
+                    newDefeated2[def.p] = [...newDefeated2[def.p], def.r];
                   }
                 } else {
                   nb2[tr][tc] = aiA;
@@ -316,13 +413,22 @@
                 }
                 
                 setBoard(nb2);
+                setDefeated(newDefeated2);
+                setLastMove({ from: [ar, ac], to: [tr, tc], turn: 2 });
                 setTurn(1);
                 setMsg('Engage the Enemy');
-              }, 800);
+              }, 300);
             } else {
-              const nextTurn = turn === 1 ? 2 : 1;
-              setTurn(nextTurn);
-              setShowTurnLock(true);
+              setLastMove({ from: [sr, sc], to: [r, c], turn: turn });
+              
+              if (defender) {
+                setShowBattleReport(true);
+                setShowingBattleForPlayer(turn);
+              } else {
+                const nextTurn = turn === 1 ? 2 : 1;
+                setTurn(nextTurn);
+                setShowTurnLock(true);
+              }
             }
           } else {
             setSel(null);
@@ -333,117 +439,240 @@
 
       const renderBoard = () => {
         const perspective = phase === 'playing' && mode === '2player' ? turn : setupPlayer;
-        const displayBoard = perspective === 2 ? [...board].reverse().map(row => [...row].reverse()) : board;
         
-        return displayBoard.map((row, r) => {
-          const actualR = perspective === 2 ? 7 - r : r;
-          return (
-            <div key={r} className="flex" style={{ flex: 1 }}>
-              {row.map((cell, c) => {
-                const actualC = perspective === 2 ? 8 - c : c;
-                const isSelected = sel?.[0] === actualR && sel?.[1] === actualC;
-                const isValidMove = moves.some(([mr, mc]) => mr === actualR && mc === actualC);
-                
-                let canSee = devMode || !cell;
-                if (cell && !devMode) {
-                  if (phase === 'setup') {
-                    canSee = cell.p === setupPlayer;
-                  } else if (mode === 'ai') {
-                    canSee = cell.p === 1;
-                  } else {
-                    canSee = cell.p === turn;
-                  }
-                }
-                
-                return (
-                  <div
-                    key={c}
-                    onClick={() => phase === 'setup' ? handleSetupClick(actualR, actualC) : handlePlayClick(actualR, actualC)}
-                    className={`flex items-center justify-center cursor-pointer transition-all ${
-                      isSelected ? 'bg-yellow-600 shadow-[inset_0_0_20px_rgba(255,215,0,0.6)]' : 
-                      isValidMove ? 'bg-emerald-700 hover:bg-emerald-600' :
-                      'bg-gradient-to-br from-amber-900 to-yellow-900 hover:from-amber-800 hover:to-yellow-800'
-                    } ${c === 0 ? 'border-l-2' : ''} ${r === 0 ? 'border-t-2' : ''} border-r-2 border-b-2 border-yellow-700`}
-                    style={{ flex: 1, aspectRatio: '1/1' }}
-                  >
-                    {cell ? (canSee ? <PieceIcon rank={cell.r} player={cell.p} /> : 
-                      <div className="text-2xl font-serif text-yellow-600">?</div>) : ''}
-                  </div>
-                );
-              })}
+        const rows = [];
+        for (let r = 0; r < 8; r++) {
+          const cells = [];
+          for (let c = 0; c < 9; c++) {
+            const actualR = perspective === 2 ? 7 - r : r;
+            const actualC = perspective === 2 ? 8 - c : c;
+            const cell = board[actualR][actualC];
+            
+            const isSelected = sel?.[0] === actualR && sel?.[1] === actualC;
+            const isValidMove = moves.some(([mr, mc]) => mr === actualR && mc === actualC);
+            
+            let isLastMoveFrom = false;
+            let isLastMoveTo = false;
+            
+            if (lastMove && lastMove.turn !== turn) {
+              isLastMoveFrom = lastMove.from[0] === actualR && lastMove.from[1] === actualC;
+              isLastMoveTo = lastMove.to[0] === actualR && lastMove.to[1] === actualC;
+            }
+            
+            let canSee = devMode || !cell;
+            if (cell && !devMode) {
+              if (phase === 'setup') {
+                canSee = cell.p === setupPlayer;
+              } else if (mode === 'ai') {
+                canSee = cell.p === 1;
+              } else {
+                canSee = cell.p === turn;
+              }
+            }
+            
+            cells.push(
+              <div
+                key={c}
+                onClick={() => phase === 'setup' ? handleSetupClick(actualR, actualC) : handlePlayClick(actualR, actualC)}
+                className={`flex items-center justify-center cursor-pointer transition-all ${
+                  isSelected ? 'bg-yellow-600 shadow-[inset_0_0_20px_rgba(255,215,0,0.6)]' : 
+                  isValidMove ? 'bg-emerald-700 hover:bg-emerald-600' :
+                  (isLastMoveFrom || isLastMoveTo) ? 'bg-red-800 hover:bg-red-700' :
+                  'bg-gradient-to-br from-amber-900 to-yellow-900 hover:from-amber-800 hover:to-yellow-800'
+                } ${c === 0 ? 'border-l-2' : ''} ${r === 0 ? 'border-t-2' : ''} border-r-2 border-b-2 border-yellow-700`}
+                style={{ flex: 1, aspectRatio: '1/1' }}
+              >
+                {cell ? (canSee ? <PieceIcon rank={cell.r} player={cell.p} /> : 
+                  <div className="text-2xl font-serif text-yellow-600">?</div>) : ''}
+              </div>
+            );
+          }
+          rows.push(
+            <div key={r} className="flex" style={{ flex: 1, minHeight: 0 }}>
+              {cells}
             </div>
           );
-        });
+        }
+        return rows;
       };
 
       return (
-        <div className="h-screen w-screen flex flex-col lg:grid lg:grid-cols-[1fr_380px] bg-black">
-          <div className="flex-1 flex items-center justify-center p-2 md:p-4 min-h-0 bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950">
-            <div className="w-full h-full max-w-[min(90vw,90vh)] max-h-[min(90vw,60vh)] lg:max-w-[90vh] lg:max-h-[90vh] flex flex-col rounded-lg shadow-[0_0_40px_rgba(212,175,55,0.3)] overflow-hidden border-4 border-yellow-700">
+        <div className="h-screen w-screen flex flex-col lg:flex-row bg-black overflow-hidden">
+          <div className="order-1 flex-1 flex items-center justify-center p-2 md:p-4 bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 min-h-0">
+            <div className="w-full h-full max-w-[min(95vw,calc(95vh*1.125))] max-h-[min(95vw/1.125,95vh)] lg:max-w-[min(95vw,calc(95vh*1.125))] lg:max-h-[min(95vw/1.125,95vh)] flex flex-col rounded-lg shadow-[0_0_40px_rgba(212,175,55,0.3)] overflow-hidden border-4 border-yellow-700">
               {renderBoard()}
             </div>
           </div>
 
-          <div className="bg-gradient-to-b from-zinc-900 to-black border-t lg:border-t-0 lg:border-l-4 border-yellow-700 flex flex-col p-4 overflow-y-auto max-h-[40vh] lg:max-h-full">
-            <div className="text-center mb-4 pb-4 border-b-2 border-yellow-800">
-              <h1 className="text-2xl md:text-3xl lg:text-4xl font-serif font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-600 tracking-wider">
+          <div className="order-2 flex-shrink-0 lg:flex-initial bg-gradient-to-b from-zinc-900 to-black border-t lg:border-t-0 lg:border-l-4 border-yellow-700 flex flex-col p-2 py-3 lg:p-4 overflow-y-auto max-h-[45vh] lg:max-h-full lg:w-[380px]">
+            <div className="text-center mb-2 pb-2 lg:mb-4 lg:pb-4 border-b-2 border-yellow-800">
+              <h1 className="text-xl md:text-2xl lg:text-4xl font-serif font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-600 tracking-wider">
                 IMPERIUM
               </h1>
-              <div className="text-xs text-yellow-600 italic mt-1 font-serif tracking-widest">SALPAKAN</div>
+              <div className="text-[10px] lg:text-xs text-yellow-600 italic mt-0 lg:mt-1 font-serif tracking-widest">SALPAKAN</div>
             </div>
             
             {phase === 'setup' && mode === null && (
-              <div className="flex flex-col gap-3 mb-4">
-                <button onClick={() => startSetup('ai')} 
-                  className="px-6 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-lg font-serif font-bold rounded border-2 border-yellow-600 hover:from-yellow-600 hover:to-yellow-700 shadow-lg transform hover:scale-105 transition-all">
-                  ⚔ VS MACHINE
-                </button>
-                <button onClick={() => startSetup('2player')} 
-                  className="px-6 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-lg font-serif font-bold rounded border-2 border-yellow-600 hover:from-yellow-600 hover:to-yellow-700 shadow-lg transform hover:scale-105 transition-all">
-                  ⚔ VS COMMANDER
-                </button>
-              </div>
-            )}
-            
-            <div className="text-center text-lg text-yellow-400 mb-4 font-serif font-bold px-4 py-3 bg-black rounded border-2 border-yellow-800">
-              {msg}
-            </div>
-            
-            {phase === 'setup' && (
-              <div className="mb-4 px-4 py-3 bg-zinc-900 rounded border-2 border-yellow-900">
-                <div className="text-yellow-500 text-base font-serif font-bold">
-                  Units Remaining: <span className="text-yellow-300 text-xl">{Object.values(inventory).reduce((sum, count) => sum + count, 0)}</span> / 21
+              <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
+                <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700 text-center">
+                  <div className="text-6xl mb-4">⚔</div>
+                  <h2 className="text-4xl font-serif font-black text-yellow-400 mb-6 tracking-wider">IMPERIUM</h2>
+                  <p className="text-sm text-yellow-600 mb-6 font-serif italic tracking-widest">SALPAKAN</p>
+                  
+                  <div className="flex flex-col gap-3 mb-6">
+                    <button onClick={() => startSetup('ai')} 
+                      className="px-6 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-lg font-serif font-bold rounded border-2 border-yellow-600 hover:from-yellow-600 hover:to-yellow-700 shadow-lg transform hover:scale-105 transition-all">
+                      ⚔ VS MACHINE
+                    </button>
+                    <button onClick={() => startSetup('2player')} 
+                      className="px-6 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-lg font-serif font-bold rounded border-2 border-yellow-600 hover:from-yellow-600 hover:to-yellow-700 shadow-lg transform hover:scale-105 transition-all">
+                      ⚔ VS COMMANDER
+                    </button>
+                  </div>
+                  
+                  <button onClick={() => setDevMode(!devMode)} 
+                    className="w-full px-4 py-2 bg-gradient-to-r from-orange-800 to-orange-900 text-white text-base font-serif font-bold rounded border-2 border-orange-700 hover:from-orange-700 hover:to-orange-800 shadow-lg">
+                    👁 OMNISCIENCE: {devMode ? 'ON' : 'OFF'}
+                  </button>
+                  
+                  <p className="text-xs text-yellow-700 mt-4 italic font-serif">
+                    Choose your battle
+                  </p>
                 </div>
               </div>
             )}
             
-            <div className="flex flex-col gap-2 mt-auto">
-              {phase === 'setup' && (
-                <>
-                  <button onClick={finishSetup} 
-                    className="px-4 py-2 bg-gradient-to-r from-green-700 to-green-800 text-white text-base font-serif font-bold rounded border-2 border-green-600 hover:from-green-600 hover:to-green-700 shadow-lg">
-                    {setupPlayer === 1 && mode === '2player' ? '→ NEXT COMMANDER' : '⚔ BEGIN BATTLE'}
-                  </button>
-                  <button onClick={() => {
-                    const nb = autoSetup(board, setupPlayer);
-                    setBoard(nb);
-                    const inv = {};
-                    RANKS.forEach(({ r }) => { inv[r] = 0; });
-                    setInventory(inv);
-                  }} className="px-4 py-2 bg-gradient-to-r from-purple-800 to-purple-900 text-yellow-300 text-base font-serif font-bold rounded border-2 border-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-lg">
-                    ⚡ AUTO DEPLOY
-                  </button>
-                </>
-              )}
-              <button onClick={() => setDevMode(!devMode)} 
-                className="px-4 py-2 bg-gradient-to-r from-orange-800 to-orange-900 text-white text-base font-serif font-bold rounded border-2 border-orange-700 hover:from-orange-700 hover:to-orange-800 shadow-lg">
-                👁 OMNISCIENCE: {devMode ? 'ON' : 'OFF'}
-              </button>
-              <button onClick={() => { setBoard(initBoard()); setPhase('setup'); setMode(null); setMsg('Choose Mode'); setInventory({}); setSel(null); setMoves([]); setShowPicker(null); setShowTurnLock(false); }} 
-                className="px-4 py-2 bg-gradient-to-r from-red-900 to-red-950 text-yellow-300 text-base font-serif font-bold rounded border-2 border-red-800 hover:from-red-800 hover:to-red-900 shadow-lg">
-                ↻ RESET CAMPAIGN
-              </button>
-            </div>
+            {phase === 'setup' && mode !== null && (
+              <>
+                <div className="text-center text-base lg:text-lg text-yellow-400 mb-2 lg:mb-4 font-serif font-bold px-3 py-2 lg:px-4 lg:py-3 bg-black rounded border-2 border-yellow-800">
+                  {msg}
+                </div>
+                
+                <div className="mb-2 lg:mb-4 px-3 py-2 lg:px-4 lg:py-3 bg-zinc-900 rounded border-2 border-yellow-900">
+                  <div className="text-yellow-500 text-sm lg:text-base font-serif font-bold">
+                    Units Remaining: <span className="text-yellow-300 text-lg lg:text-xl">{Object.values(inventory).reduce((sum, count) => sum + count, 0)}</span> / 21
+                  </div>
+                </div>
+              </>
+            )}
+            
+            {phase === 'playing' && (
+              <>
+                <div className="text-center text-base lg:text-lg text-yellow-400 mb-2 lg:mb-4 font-serif font-bold px-3 py-2 lg:px-4 lg:py-3 bg-black rounded border-2 border-yellow-800">
+                  {msg}
+                </div>
+              </>
+            )}
+            
+            {devMode && phase === 'playing' && (
+              <div className="mb-2 lg:mb-4 px-3 py-2 lg:px-4 lg:py-3 bg-zinc-900 rounded border-2 border-purple-900">
+                <div className="text-purple-400 text-[10px] lg:text-xs font-mono">
+                  <div>Turn: {turn} | View: {phase === 'playing' && mode === '2player' ? turn : setupPlayer}</div>
+                  {lastMove && (
+                    <div>Last: [{lastMove.from[0]},{lastMove.from[1]}]→[{lastMove.to[0]},{lastMove.to[1]}] T{lastMove.turn}</div>
+                  )}
+                  <div>P1: {board.flat().filter(c => c?.p === 1).length} | P2: {board.flat().filter(c => c?.p === 2).length}</div>
+                </div>
+              </div>
+            )}
+            
+            {(phase === 'setup' || phase === 'playing') && mode !== null && (
+              <div className="mb-2 lg:mb-4 space-y-2 lg:space-y-3">
+                <div className="px-3 py-2 lg:px-4 lg:py-3 bg-zinc-900 rounded border-2 border-yellow-900">
+                  <div className="text-yellow-500 text-xs lg:text-sm font-serif font-bold mb-1 lg:mb-2">Your Forces:</div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {RANKS.map(({ r }) => {
+                      const count = board.flat().filter(cell => cell?.p === (phase === 'playing' && mode === '2player' ? turn : (phase === 'playing' && mode === 'ai' ? 1 : setupPlayer)) && cell?.r === r).length;
+                      return count > 0 ? (
+                        <div key={r} className="relative w-7 h-7 lg:w-8 lg:h-8 bg-black rounded border border-yellow-700">
+                          <div className="w-full h-full scale-90"><PieceIcon rank={r} player={phase === 'playing' && mode === '2player' ? turn : (phase === 'playing' && mode === 'ai' ? 1 : setupPlayer)} /></div>
+                          <div className="absolute -top-1 -right-1 bg-green-700 text-white text-[10px] lg:text-xs rounded-full w-3.5 h-3.5 lg:w-4 lg:h-4 flex items-center justify-center font-bold">{count}</div>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+                
+                {defeated[phase === 'playing' && mode === '2player' ? turn : (phase === 'playing' && mode === 'ai' ? 1 : setupPlayer)].length > 0 && (
+                  <div className="px-3 py-2 lg:px-4 lg:py-3 bg-red-950 rounded border-2 border-red-900">
+                    <div className="text-red-400 text-xs lg:text-sm font-serif font-bold mb-1 lg:mb-2">Casualties:</div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {[...new Set(defeated[phase === 'playing' && mode === '2player' ? turn : (phase === 'playing' && mode === 'ai' ? 1 : setupPlayer)])].map(r => {
+                        const count = defeated[phase === 'playing' && mode === '2player' ? turn : (phase === 'playing' && mode === 'ai' ? 1 : setupPlayer)].filter(dr => dr === r).length;
+                        return (
+                          <div key={r} className="relative w-7 h-7 lg:w-8 lg:h-8 bg-black rounded border border-red-800 opacity-60">
+                            <div className="w-full h-full scale-90 grayscale"><PieceIcon rank={r} player={phase === 'playing' && mode === '2player' ? turn : (phase === 'playing' && mode === 'ai' ? 1 : setupPlayer)} /></div>
+                            <div className="absolute -top-1 -right-1 bg-red-700 text-white text-[10px] lg:text-xs rounded-full w-3.5 h-3.5 lg:w-4 lg:h-4 flex items-center justify-center font-bold">{count}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {phase === 'setup' && mode !== null && (
+              <div className="flex flex-col gap-1.5 lg:gap-2 mt-auto">
+                <button onClick={finishSetup} 
+                  className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-r from-green-700 to-green-800 text-white text-sm lg:text-base font-serif font-bold rounded border-2 border-green-600 hover:from-green-600 hover:to-green-700 shadow-lg">
+                  {setupPlayer === 1 && mode === '2player' ? '→ NEXT COMMANDER' : '⚔ BEGIN BATTLE'}
+                </button>
+                <button onClick={() => {
+                  const freshBoard = setupPlayer === 1 ? board : board;
+                  const nb = autoSetup(freshBoard, setupPlayer);
+                  setBoard(nb);
+                  const inv = {};
+                  RANKS.forEach(({ r }) => { inv[r] = 0; });
+                  setInventory(inv);
+                }} className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-r from-purple-800 to-purple-900 text-yellow-300 text-sm lg:text-base font-serif font-bold rounded border-2 border-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-lg">
+                  ⚡ AUTO DEPLOY
+                </button>
+                <button onClick={() => { 
+                  setBoard(initBoard()); 
+                  setPhase('setup'); 
+                  setMode(null); 
+                  setMsg('Choose Mode'); 
+                  setInventory({}); 
+                  setSel(null); 
+                  setMoves([]); 
+                  setShowPicker(null); 
+                  setShowTurnLock(false); 
+                  setDefeated({ 1: [], 2: [] }); 
+                  setBattleResult(null); 
+                  setLastMove(null); 
+                  setShowingBattleForPlayer(null); 
+                  setShowBattleReport(false); 
+                }} 
+                  className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-r from-red-900 to-red-950 text-yellow-300 text-sm lg:text-base font-serif font-bold rounded border-2 border-red-800 hover:from-red-800 hover:to-red-900 shadow-lg">
+                  ↻ RESET CAMPAIGN
+                </button>
+              </div>
+            )}
+            
+            {phase === 'playing' && (
+              <div className="flex flex-col gap-1.5 lg:gap-2 mt-auto">
+                <button onClick={() => { 
+                  setBoard(initBoard()); 
+                  setPhase('setup'); 
+                  setMode(null); 
+                  setMsg('Choose Mode'); 
+                  setInventory({}); 
+                  setSel(null); 
+                  setMoves([]); 
+                  setShowPicker(null); 
+                  setShowTurnLock(false); 
+                  setDefeated({ 1: [], 2: [] }); 
+                  setBattleResult(null); 
+                  setLastMove(null); 
+                  setShowingBattleForPlayer(null); 
+                  setShowBattleReport(false); 
+                }} 
+                  className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-r from-red-900 to-red-950 text-yellow-300 text-sm lg:text-base font-serif font-bold rounded border-2 border-red-800 hover:from-red-800 hover:to-red-900 shadow-lg">
+                  ↻ RESET CAMPAIGN
+                </button>
+              </div>
+            )}
           </div>
 
           {showPicker && (
@@ -474,6 +703,91 @@
             </div>
           )}
 
+          {showBattleReport && battleResult && (
+            <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
+              <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700 text-center">
+                <div className="mb-6 p-4 bg-black rounded border-2 border-yellow-800">
+                  <div className="text-xl font-serif font-bold text-yellow-400 mb-3">BATTLE REPORT</div>
+                  <div className="flex items-center justify-center gap-4 mb-2">
+                    {battleResult.result === 'draw' ? (
+                      <>
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 mb-1">
+                            <PieceIcon rank={showingBattleForPlayer === battleResult.player ? battleResult.attacker : battleResult.defender} player={showingBattleForPlayer} />
+                          </div>
+                          <div className="text-xs text-yellow-600">Your Unit</div>
+                        </div>
+                        <div className="text-3xl">⚔</div>
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 mb-1">
+                            <PieceIcon rank={showingBattleForPlayer === battleResult.player ? battleResult.defender : battleResult.attacker} player={showingBattleForPlayer === 1 ? 2 : 1} />
+                          </div>
+                          <div className="text-xs text-yellow-600">Enemy Unit</div>
+                        </div>
+                      </>
+                    ) : showingBattleForPlayer === battleResult.player ? (
+                      <>
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 mb-1">
+                            <PieceIcon rank={battleResult.attacker} player={battleResult.player} />
+                          </div>
+                          <div className="text-xs text-yellow-600">Your Unit</div>
+                        </div>
+                        <div className="text-3xl">⚔</div>
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 mb-1 flex items-center justify-center">
+                            {(battleResult.attacker === 'SPY' && battleResult.result === 'lose') || 
+                             (battleResult.attacker === 'PVT' && battleResult.result === 'lose') ||
+                             (battleResult.defender === 'FLAG') ? (
+                              <PieceIcon rank={battleResult.defender} player={battleResult.player === 1 ? 2 : 1} />
+                            ) : (
+                              <div className="text-4xl text-yellow-600">?</div>
+                            )}
+                          </div>
+                          <div className="text-xs text-yellow-600">Enemy</div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 mb-1 flex items-center justify-center">
+                            {(battleResult.defender === 'SPY' && battleResult.result === 'win') || 
+                             (battleResult.defender === 'PVT' && battleResult.result === 'win') ||
+                             (battleResult.attacker === 'FLAG') ? (
+                              <PieceIcon rank={battleResult.attacker} player={battleResult.player} />
+                            ) : (
+                              <div className="text-4xl text-yellow-600">?</div>
+                            )}
+                          </div>
+                          <div className="text-xs text-yellow-600">Enemy</div>
+                        </div>
+                        <div className="text-3xl">⚔</div>
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 mb-1">
+                            <PieceIcon rank={battleResult.defender} player={battleResult.player === 1 ? 2 : 1} />
+                          </div>
+                          <div className="text-xs text-yellow-600">Your Unit</div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className={`text-lg font-serif font-bold mt-3 ${
+                    (showingBattleForPlayer === battleResult.player && battleResult.result === 'win') || (showingBattleForPlayer !== battleResult.player && battleResult.result === 'lose') ? 'text-green-400' : 
+                    (showingBattleForPlayer === battleResult.player && battleResult.result === 'lose') || (showingBattleForPlayer !== battleResult.player && battleResult.result === 'win') ? 'text-red-400' : 'text-yellow-400'
+                  }`}>
+                    {(showingBattleForPlayer === battleResult.player && battleResult.result === 'win') || (showingBattleForPlayer !== battleResult.player && battleResult.result === 'lose') ? '⚔ VICTORY' : 
+                     (showingBattleForPlayer === battleResult.player && battleResult.result === 'lose') || (showingBattleForPlayer !== battleResult.player && battleResult.result === 'win') ? '☠ UNIT LOST' : '⚡ MUTUAL ELIMINATION'}
+                  </div>
+                </div>
+                
+                <button onClick={confirmTurn}
+                        className="px-8 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-xl rounded border-2 border-yellow-600 font-serif font-bold hover:from-yellow-600 hover:to-yellow-700 shadow-2xl transform hover:scale-105 transition-all w-full">
+                  CONTINUE ✓
+                </button>
+              </div>
+            </div>
+          )}
+
           {showTurnLock && (
             <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
               <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700 text-center">
@@ -482,7 +796,7 @@
                   {pausePhase ? (setupPlayer === 1 && mode === '2player' ? 'COMMANDER 2' : 'BATTLE BEGINS') : `COMMANDER ${turn}`}
                 </h2>
                 <p className="text-lg text-yellow-600 mb-6 font-serif">
-                  {pausePhase ? 'Transfer command authority' : 'Prepare your strategy'}
+                  {pausePhase ? 'Transfer command authority' : (battleResult ? 'Review the battle outcome' : 'Prepare your strategy')}
                 </p>
                 <button onClick={confirmTurn}
                         className="px-8 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-xl rounded border-2 border-yellow-600 font-serif font-bold hover:from-yellow-600 hover:to-yellow-700 shadow-2xl transform hover:scale-105 transition-all w-full">
