@@ -490,7 +490,7 @@ Connection: ${connectionStatus}
 }
 
 
-    function GameBoard({ board, phase, mode, multiplayerMode, turn, setupPlayer, sel, moves, lastMove, devMode, playerId, onCellClick }) {
+    function GameBoard({ board, phase, mode, multiplayerMode, turn, setupPlayer, sel, moves, lastMove, devMode, playerId, opponentLastSelected, onCellClick }) {
       const perspective = phase === 'playing' && mode === '2player' && multiplayerMode === 'local' ? turn : (multiplayerMode === 'online' ? playerId : setupPlayer);
       
       const rows = [];
