@@ -1084,6 +1084,7 @@ const handleGameStart = (data) => {
         if (data.battleResult) {
           setBattleResult(data.battleResult);
           setShowBattleReport(true);
+          setShowingBattleForPlayer(currentPlayerId);
         }
       }
     };
@@ -1203,10 +1204,11 @@ const handleGameStart = (data) => {
     }
   };
 
-  const confirmTurn = () => {
-    if (showBattleReport) {
-      setShowBattleReport(false);
-      
+const confirmTurn = () => {
+  if (showBattleReport) {
+    setShowBattleReport(false);
+    
+    if (multiplayerMode === 'local') {
       if (showingBattleForPlayer && turn === showingBattleForPlayer && showingBattleForPlayer === battleResult.player) {
         const nextTurn = turn === 1 ? 2 : 1;
         setTurn(nextTurn);
@@ -1217,30 +1219,35 @@ const handleGameStart = (data) => {
         setBattleResult(null);
         setShowTurnLock(false);
       }
-      return;
-    }
-    
-    if (pausePhase && setupPlayer === 1 && mode === '2player' && multiplayerMode === 'local') {
-      setSetupPlayer(2);
-      const inv = {};
-      RANKS.forEach(({ r, count }) => { inv[r] = count; });
-      setInventory(inv);
-      setMsg('Deploy Your Forces');
-      setShowTurnLock(false);
-      setPausePhase(false);
-    } else if (pausePhase && phase === 'setup') {
-      setPhase('playing');
-      setTurn(1);
-      setMsg('Imperium Commander 1');
-      setShowTurnLock(false);
-      setPausePhase(false);
-    } else if (battleResult && showingBattleForPlayer !== null) {
-      setShowTurnLock(false);
-      setShowBattleReport(true);
     } else {
+      setShowingBattleForPlayer(null);
+      setBattleResult(null);
       setShowTurnLock(false);
     }
-  };
+    return;
+  }
+  
+  if (pausePhase && setupPlayer === 1 && mode === '2player' && multiplayerMode === 'local') {
+    setSetupPlayer(2);
+    const inv = {};
+    RANKS.forEach(({ r, count }) => { inv[r] = count; });
+    setInventory(inv);
+    setMsg('Deploy Your Forces');
+    setShowTurnLock(false);
+    setPausePhase(false);
+  } else if (pausePhase && phase === 'setup') {
+    setPhase('playing');
+    setTurn(1);
+    setMsg('Imperium Commander 1');
+    setShowTurnLock(false);
+    setPausePhase(false);
+  } else if (battleResult && showingBattleForPlayer !== null) {
+    setShowTurnLock(false);
+    setShowBattleReport(true);
+  } else {
+    setShowTurnLock(false);
+  }
+};
 
   const placeOnBoard = (r, c, rank) => {
     if (board[r][c]) return;
