@@ -2,8 +2,7 @@
 
 <div align="center">
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Status](https://img.shields.io/badge/status-active-success.svg)
+![Platform](https://img.shields.io/badge/platform-apk-green .svg)
 ![Platform](https://img.shields.io/badge/platform-web-orange.svg)
 ![Multiplayer](https://img.shields.io/badge/multiplayer-enabled-brightgreen.svg)
 
