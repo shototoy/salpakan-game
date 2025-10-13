@@ -9,3 +9,6 @@
 !page.html
 !game.html
 !index.html
+!releases/
+!releases/**/*
+!app-debug.apk
