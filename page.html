@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salpakan - Strategic Card Battle Game</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #2c2c2c;
+      line-height: 1.6;
+      background: #f5f5f5;
+    }
+
+    header {
+      background: linear-gradient(135deg, #8b2e2e 0%, #c41e3a 100%);
+      color: white;
+      padding: 80px 20px;
+      text-align: center;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .logo {
+      font-size: 4rem;
+      font-weight: bold;
+      margin-bottom: 10px;
+      text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
+      letter-spacing: 2px;
+    }
+
+    .logo-icon {
+      font-size: 5rem;
+      margin-bottom: 20px;
+      filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));
+    }
+
+    .tagline {
+      font-size: 1.6rem;
+      margin-bottom: 50px;
+      opacity: 0.95;
+      font-weight: 300;
+    }
+
+    .cta-button {
+      background: #d4af37;
+      color: #8b2e2e;
+      border: none;
+      padding: 18px 50px;
+      font-size: 1.1rem;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      text-decoration: none;
+      display: inline-block;
+      font-weight: 700;
+    }
+
+    .cta-button:hover {
+      background: #e5c158;
+      transform: translateY(-3px);
+      box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+    }
+
+    section {
+      padding: 100px 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .features {
+      background: white;
+    }
+
+    .section-title {
+      font-size: 2.8rem;
+      margin-bottom: 70px;
+      text-align: center;
+      color: #8b2e2e;
+      font-weight: bold;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 40px;
+    }
+
+    .feature-card {
+      background: #fff9f5;
+      padding: 50px 30px;
+      border-radius: 10px;
+      text-align: center;
+      border: 2px solid #e8d4c4;
+      box-shadow: 0 5px 15px rgba(139, 46, 46, 0.1);
+      transition: all 0.3s ease;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-10px);
+      border-color: #c41e3a;
+      box-shadow: 0 15px 40px rgba(139, 46, 46, 0.15);
+    }
+
+    .feature-icon {
+      font-size: 3.5rem;
+      margin-bottom: 25px;
+    }
+
+    .feature-card h3 {
+      font-size: 1.6rem;
+      margin-bottom: 15px;
+      color: #8b2e2e;
+      font-weight: bold;
+    }
+
+    .feature-card p {
+      color: #555;
+      font-size: 1rem;
+      line-height: 1.7;
+    }
+
+    .about {
+      background: #f5f5f5;
+    }
+
+    .about-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+
+    .about-text h2 {
+      font-size: 2.5rem;
+      margin-bottom: 25px;
+      color: #8b2e2e;
+      font-weight: bold;
+    }
+
+    .about-text p {
+      color: #555;
+      margin-bottom: 20px;
+      font-size: 1.1rem;
+      line-height: 1.8;
+    }
+
+    .about-image {
+      background: linear-gradient(135deg, #8b2e2e 0%, #c41e3a 100%);
+      border-radius: 15px;
+      height: 350px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4rem;
+    }
+
+    .gameplay {
+      background: white;
+    }
+
+    .gameplay-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+
+    .gameplay-image {
+      background: linear-gradient(135deg, #8b2e2e 0%, #c41e3a 100%);
+      border-radius: 15px;
+      height: 350px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4rem;
+    }
+
+    .gameplay-text h2 {
+      font-size: 2.5rem;
+      margin-bottom: 25px;
+      color: #8b2e2e;
+      font-weight: bold;
+    }
+
+    .gameplay-text p {
+      color: #555;
+      margin-bottom: 20px;
+      font-size: 1.1rem;
+      line-height: 1.8;
+    }
+
+    .download-section {
+      background: linear-gradient(135deg, #8b2e2e 0%, #c41e3a 100%);
+      color: white;
+      text-align: center;
+      padding: 120px 20px;
+    }
+
+    .download-section h2 {
+      font-size: 2.8rem;
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+
+    .download-section p {
+      font-size: 1.2rem;
+      margin-bottom: 50px;
+      opacity: 0.95;
+    }
+
+    .download-button {
+      background: #d4af37;
+      color: #8b2e2e;
+      border: none;
+      padding: 22px 70px;
+      font-size: 1.3rem;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      text-decoration: none;
+      display: inline-block;
+      font-weight: 700;
+    }
+
+    .download-button:hover {
+      background: #e5c158;
+      transform: translateY(-3px);
+      box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+    }
+
+    footer {
+      background: #2c2c2c;
+      color: #d4af37;
+      text-align: center;
+      padding: 40px 20px;
+      font-weight: 600;
+    }
+
+    @media (max-width: 768px) {
+      header {
+        padding: 60px 20px;
+        min-height: auto;
+      }
+
+      .logo {
+        font-size: 2.5rem;
+      }
+
+      .logo-icon {
+        font-size: 3.5rem;
+      }
+
+      .tagline {
+        font-size: 1.2rem;
+        margin-bottom: 30px;
+      }
+
+      .section-title {
+        font-size: 2rem;
+        margin-bottom: 40px;
+      }
+
+      .about-content,
+      .gameplay-content {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .about-image,
+      .gameplay-image {
+        height: 250px;
+        font-size: 3rem;
+      }
+
+      section {
+        padding: 60px 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo-icon">♟️</div>
+    <div class="logo">SALPAKAN</div>
+    <div class="tagline">Ancient Strategy. Modern Battles.</div>
+    <a href="#download" class="cta-button">Get Started</a>
+  </header>
+
+  <section class="features">
+    <h2 class="section-title">Master the Game</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🎯</div>
+        <h3>Strategic Depth</h3>
+        <p>Deploy your pieces with precision. Every move counts in this timeless battle of wits and strategy.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚔️</div>
+        <h3>Real-Time Combat</h3>
+        <p>Engage opponents in fast-paced, intense matches. Outsmart and outmaneuver your rivals instantly.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">👥</div>
+        <h3>Online Multiplayer</h3>
+        <p>Connect with players worldwide. Challenge friends or compete against worthy opponents globally.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏆</div>
+        <h3>Ranking System</h3>
+        <p>Climb the leaderboards and prove your mastery. Track your progress and earn prestigious ranks.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📱</div>
+        <h3>Cross-Platform</h3>
+        <p>Play on mobile or web. Seamlessly switch between devices and continue your battles anywhere.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>Quick Matches</h3>
+        <p>Experience intense 5-10 minute matches. Perfect for quick gaming sessions or marathon battles.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="about">
+    <div class="about-content">
+      <div>
+        <h2>What is Salpakan?</h2>
+        <p>Salpakan is an ancient Filipino strategy game brought to life for the modern era. Combining traditional gameplay with cutting-edge technology, it's a game of tactical brilliance and calculated risks.</p>
+        <p>Each piece holds unique powers. Position them wisely, anticipate your opponent's moves, and emerge victorious. Whether you're a casual player or a competitive strategist, Salpakan offers endless depth and excitement.</p>
+      </div>
+      <div class="about-image">♟️</div>
+    </div>
+  </section>
+
+  <section class="gameplay">
+    <div class="gameplay-content">
+      <div class="gameplay-image">🎮</div>
+      <div class="gameplay-text">
+        <h2>How to Play</h2>
+        <p><strong>Setup:</strong> Deploy your pieces on the battlefield. Position them strategically to gain the upper hand.</p>
+        <p><strong>Battle:</strong> Move your pieces across the board to capture opponents' pieces and control the field.</p>
+        <p><strong>Victory:</strong> Capture your opponent's Spion or eliminate all their forces to win.</p>
+        <p>Master the rank system of each piece and learn the winning strategies that have been perfected over centuries.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="download-section" id="download">
+    <h2>Ready to Battle?</h2>
+    <p>Download Salpakan today and join thousands of strategic gamers</p>
+    <a href="https://github.com/shototoy/salpakan-game/releases/latest/salpakan.apk" class="download-button">📥 Download APK</a>
+  </section>
+
+  <footer>
+    <p>Salpakan © 2025 | Strategy. Skill. Victory.</p>
+  </footer>
+</body>
+</html>
