@@ -3,7 +3,26 @@
 // ============================================
 
 const WebSocket = require('ws');
-const wss = new WebSocket.Server({ port: 8080 });
+const port = process.env.PORT || 8080;
+const wss = new WebSocket.Server({ port });
+console.log(`🎮 Salpakan Server running on port ${port}`);
+const http = require('http');
+const server = http.createServer((req, res) => {
+  if (req.url === '/health') {
+    res.writeHead(200);
+    res.end('OK');
+  }
+});
+
+server.on('upgrade', (request, socket, head) => {
+  wss.handleUpgrade(request, socket, head, (ws) => {
+    wss.emit('connection', ws, request);
+  });
+});
+
+server.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
+});
 
 const rooms = new Map();
 
