@@ -4,3 +4,5 @@
 !server.js
 !assets/
 !assets/**/*
+!js
+!js/**/*
