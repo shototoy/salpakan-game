@@ -5,22 +5,81 @@
 const WebSocketManager = {
   ws: null,
   callbacks: {},
+  currentServer: null,
+  
   getServerUrl() {
     const isMobile = typeof window.Capacitor !== 'undefined';
     if (isMobile || window.location.protocol === 'https:') {
-      return 'wss://salpakan-game.onrender.com';  // ⚠️ CHANGE THIS
+      return 'wss://salpakan-game.onrender.com';
     }
     return `ws://${window.location.hostname}:8080`;
   },
 
-  connect: (roomId, playerId) => {
+  getAllServers() {
+    return [
+      { name: 'Local', url: 'ws://localhost:8080' },
+      { name: 'Render', url: 'wss://salpakan-game.onrender.com' }
+    ];
+  },
+
+  async getRoomsFromAllServers() {
+    const servers = WebSocketManager.getAllServers();
+    const allRooms = [];
+
+    for (const server of servers) {
+      try {
+        const rooms = await WebSocketManager.fetchRoomsFromServer(server.url, server.name);
+        allRooms.push(...rooms);
+      } catch (error) {
+        console.warn(`Could not fetch rooms from ${server.name}:`, error);
+      }
+    }
+
+    return allRooms;
+  },
+
+  fetchRoomsFromServer: (serverUrl, serverName) => {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(serverUrl);
+      const timeout = setTimeout(() => {
+        ws.close();
+        reject(new Error(`Timeout connecting to ${serverName}`));
+      }, 5000);
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'getRooms' }));
+      };
+
+      ws.onmessage = (event) => {
+        clearTimeout(timeout);
+        const data = JSON.parse(event.data);
+        if (data.type === 'roomList') {
+          const roomsWithServer = data.rooms.map(room => ({
+            ...room,
+            server: serverName,
+            serverUrl: serverUrl
+          }));
+          ws.close();
+          resolve(roomsWithServer);
+        }
+      };
+
+      ws.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error(`Connection error to ${serverName}`));
+      };
+    });
+  },
+
+  connect: (roomId, playerId, serverUrl = null) => {
     if (WebSocketManager.ws) {
       WebSocketManager.ws.close();
       WebSocketManager.ws = null;
     }
 
-    const url = WebSocketManager.getServerUrl();
+    const url = serverUrl || WebSocketManager.getServerUrl();
     console.log(`Connecting to: ${url}`);
+    WebSocketManager.currentServer = url;
     
     const ws = new WebSocket(url);
     WebSocketManager.ws = ws;
@@ -72,6 +131,7 @@ const WebSocketManager = {
       WebSocketManager.ws = null;
     }
     WebSocketManager.callbacks = {};
+    WebSocketManager.currentServer = null;
   }
 };
 
