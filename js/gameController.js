@@ -43,32 +43,24 @@ window.GameController = function GameController() {
   const [opponentLastSelected, setOpponentLastSelected] = useState(null);
   const [showVictory, setShowVictory] = useState(false);
   const [victoryData, setVictoryData] = useState(null);
+  const [flaggedPiece, setFlaggedPiece] = useState(null);
+  const longPressTimer = useRef(null);
 
   // ============================================
   // WEBSOCKET EFFECTS
   // ============================================
   useEffect(() => {
     if (screen === 'multiplayer') {
-      const host = window.location.hostname;
-      const roomListWs = new WebSocket(`ws://${host}:8080`);
-      
-      roomListWs.onopen = () => roomListWs.send(JSON.stringify({ type: 'getRooms' }));
-      roomListWs.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'roomList') {
-          setAvailableRooms(data.rooms.filter(room => !room.isFull));
-        }
+      const fetchRooms = async () => {
+        const rooms = await WebSocketManager.getRoomsFromAllServers();
+        setAvailableRooms(rooms.filter(room => !room.isFull));
       };
 
-      const interval = setInterval(() => {
-        if (roomListWs.readyState === WebSocket.OPEN) {
-          roomListWs.send(JSON.stringify({ type: 'getRooms' }));
-        }
-      }, 2000);
+      fetchRooms();
+      const interval = setInterval(fetchRooms, 2000);
 
       return () => {
         clearInterval(interval);
-        roomListWs.close(); 
       };
     }
   }, [screen]);
@@ -244,6 +236,24 @@ window.GameController = function GameController() {
   // ============================================
   // GAME HANDLERS
   // ============================================
+
+  const handleCellPress = (r, c) => {
+  if (phase !== 'playing') return;
+  const cell = board[r][c];
+  if (!cell || cell.p === turn) return;
+  
+  longPressTimer.current = setTimeout(() => {
+    setFlaggedPiece([r, c]);
+  }, 500);
+};
+
+const handleCellRelease = () => {
+  if (longPressTimer.current) {
+    clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  }
+};
+
   const resetGame = useCallback(() => {
     setScreen('home');
     setBoard(GameLogic.initBoard());
@@ -476,25 +486,29 @@ window.GameController = function GameController() {
             newBattleResult = { attacker: attacker.r, defender: defender.r, result: 'lose', player: turn };
             
             if (attacker.r === 'FLAG') {
-              const winner = turn === 1 ? 2 : 1;
-              setBoard(nb);
-              setMoves([]);
-              setSel(null);
-              setDefeated(newDefeated);
-              setPhase('ended');
-              setVictoryData({ winner, victoryType: 'flag_captured' });
-              setShowVictory(true);
-              console.log('Victory triggered - flag captured by player', winner);
-              if (multiplayerMode === 'online') {
-                WebSocketManager.send({
-                  type: 'gameEnd',
-                  roomId,
-                  winner,
-                  victoryType: 'flag_captured',
-                  message: `Victory - Commander ${winner}!`
-                });
+              checkFlagVictory: (board, player, flagRow, flagCol) => {
+              const enemyPlayer = player === 1 ? 2 : 1;
+              const targetRow = player === 1 ? 0 : 7;
+              
+              if (flagRow !== targetRow) return false;
+              
+              const checkPositions = [
+                [flagRow, flagCol - 1],
+                [flagRow, flagCol + 1],
+                [flagRow + (player === 1 ? 1 : -1), flagCol]
+              ];
+              
+              for (const [r, c] of checkPositions) {
+                if (r >= 0 && r < 8 && c >= 0 && c < 9) {
+                  const cell = board[r][c];
+                  if (cell && cell.p === enemyPlayer) {
+                    return false;
+                  }
+                }
               }
-              return;
+              
+              return true;
+            }
             }
           } else {
             nb[r][c] = null;
@@ -514,26 +528,30 @@ window.GameController = function GameController() {
         setSel(null);
         setMoves([]);
         
-        // Check for flag reaching enemy territory victory
         if (attacker.r === 'FLAG') {
-          const flagVictory = GameLogic.checkFlagVictory(nb, turn);
-          console.log('Checking flag victory for player', turn, ':', flagVictory);
-          if (flagVictory) {
-            setPhase('ended');
-            setVictoryData({ winner: turn, victoryType: 'flag_reached' });
-            setShowVictory(true);
-            console.log('Victory triggered - flag reached territory by player', turn);
-            if (multiplayerMode === 'online') {
-              WebSocketManager.send({
-                type: 'gameEnd',
-                roomId,
-                winner: turn,
-                victoryType: 'flag_reached',
-                message: `Victory - Commander ${turn}!`
-              });
+          checkFlagVictory: (board, player, flagRow, flagCol) => {
+          const enemyPlayer = player === 1 ? 2 : 1;
+          const targetRow = player === 1 ? 0 : 7;
+          
+          if (flagRow !== targetRow) return false;
+          
+          const checkPositions = [
+            [flagRow, flagCol - 1],
+            [flagRow, flagCol + 1],
+            [flagRow + (player === 1 ? 1 : -1), flagCol]
+          ];
+          
+          for (const [r, c] of checkPositions) {
+            if (r >= 0 && r < 8 && c >= 0 && c < 9) {
+              const cell = board[r][c];
+              if (cell && cell.p === enemyPlayer) {
+                return false;
+              }
             }
-            return;
           }
+          
+          return true;
+        }
         }
         
         const moveData = { from: [sr, sc], to: [r, c], turn };
@@ -572,6 +590,7 @@ window.GameController = function GameController() {
   };
 
   const handleCellClick = (r, c) => {
+    handleCellRelease();
     if (phase === 'setup') {
       handleSetupClick(r, c);
     } else if (phase === 'playing') {
@@ -610,7 +629,7 @@ window.GameController = function GameController() {
     setScreen('room');
   };
 
-  const joinRoom = (id) => {
+  const joinRoom = (id, serverUrl = null) => {
     setRoomId(id);
     setConnectionStatus('connecting');
     setPlayers([null, null]);
@@ -618,6 +637,10 @@ window.GameController = function GameController() {
     setMyReadyState(false);
     setOpponentReadyState(false);
     setScreen('room');
+    
+    if (serverUrl) {
+      WebSocketManager.connect(id, null, serverUrl);
+    }
   };
 
   const toggleReady = () => {
@@ -644,7 +667,6 @@ window.GameController = function GameController() {
     });
   };
 
-  // Debug effect to log victory state changes
   useEffect(() => {
     console.log('Victory state changed:', { showVictory, victoryData, phase });
   }, [showVictory, victoryData, phase]);
@@ -714,7 +736,10 @@ window.GameController = function GameController() {
               devMode={devMode}
               playerId={playerId}
               opponentLastSelected={opponentLastSelected}
+              flaggedPiece={flaggedPiece}
               onCellClick={handleCellClick}
+              onCellPress={handleCellPress}
+              onCellRelease={handleCellRelease}
               GameModes={GameModes}
               RANKS={RANKS}
             />

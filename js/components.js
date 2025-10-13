@@ -111,9 +111,12 @@ window.MultiplayerLobby = function MultiplayerLobby({ onBack, onCreateRoom, onJo
           <div className="mb-4">
             <p className="text-yellow-600 font-serif text-sm mb-2">Available Rooms:</p>
             {availableRooms.map(room => (
-              <button key={room.id} onClick={() => onJoinRoom(room.id)}
-                className="w-full px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-yellow-400 rounded border border-yellow-800 font-mono mb-2">
-                {room.id} ({room.players}/2)
+              <button key={`${room.serverUrl}-${room.id}`} onClick={() => onJoinRoom(room.id, room.serverUrl)}
+                className="w-full px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-yellow-400 rounded border border-yellow-800 font-mono mb-2 text-left">
+                <div className="flex justify-between items-center">
+                  <span>{room.id}</span>
+                  <span className="text-xs text-gray-500">[{room.server}] {room.players}/2</span>
+                </div>
               </button>
             ))}
           </div>
@@ -206,7 +209,11 @@ window.RoomWaiting = function RoomWaiting({ roomId, onLeave, onStart, onToggleRe
   );
 }
 
-window.GameBoard = function GameBoard({ board, phase, mode, multiplayerMode, turn, setupPlayer, sel, moves, lastMove, devMode, playerId, opponentLastSelected, onCellClick, GameModes, RANKS }) {
+window.GameBoard = function GameBoard({ 
+  board, phase, mode, multiplayerMode, turn, setupPlayer, sel, moves, lastMove, 
+  devMode, playerId, opponentLastSelected, flaggedPiece, 
+  onCellClick, onCellPress, onCellRelease, GameModes, RANKS 
+}) {
   const modeHandler = mode === 'ai' ? GameModes.ai : (multiplayerMode === 'online' ? GameModes.online : GameModes.local);
   const perspective = modeHandler.getBoardPerspective(phase, turn, setupPlayer, playerId);
 
@@ -230,23 +237,32 @@ window.GameBoard = function GameBoard({ board, phase, mode, multiplayerMode, tur
         isLastMoveTo = lastMove.to[0] === actualR && lastMove.to[1] === actualC;
       }
 
+      const isFlagged = flaggedPiece?.[0] === actualR && flaggedPiece?.[1] === actualC; 
       const canSee = phase === 'setup'
         ? (cell?.p === (multiplayerMode === 'online' ? playerId : setupPlayer) || devMode || !cell)
         : modeHandler.shouldShowPiece(cell, turn, playerId, devMode);
 
       cells.push(
-        <div
-          key={c}
-          onClick={() => onCellClick(actualR, actualC)}
-          className={`flex items-center justify-center cursor-pointer transition-all ${
-            isSelected ? 'bg-yellow-600 shadow-[inset_0_0_20px_rgba(255,215,0,0.6)]' :
-            isOpponentSelected ? 'bg-orange-600 shadow-[inset_0_0_20px_rgba(255,165,0,0.6)]' :
-            isValidMove ? 'bg-emerald-700 hover:bg-emerald-600' :
-            (isLastMoveFrom || isLastMoveTo) ? 'bg-red-800 hover:bg-red-700' :
-            'bg-gradient-to-br from-amber-900 to-yellow-900 hover:from-amber-800 hover:to-yellow-800'
-          } ${c === 0 ? 'border-l-2' : ''} ${r === 0 ? 'border-t-2' : ''} border-r-2 border-b-2 border-yellow-700`}
-          style={{ flex: 1, aspectRatio: '1/1' }}
-        >
+      <div
+  key={c}
+  onClick={() => onCellClick(actualR, actualC)}
+  onMouseDown={() => onCellPress(actualR, actualC)}
+  onMouseUp={onCellRelease}
+  onMouseLeave={onCellRelease}
+  onTouchStart={() => onCellPress(actualR, actualC)}
+  onTouchEnd={onCellRelease}
+  className={`flex items-center justify-center cursor-pointer transition-all ${
+    isSelected ? 'bg-gradient-to-br from-amber-400 to-amber-500 shadow-[inset_0_0_15px_rgba(251,191,36,0.4)]' :
+    isFlagged ? 'bg-gradient-to-br from-violet-400 to-violet-500 shadow-[inset_0_0_15px_rgba(167,139,250,0.4)]' :
+    isOpponentSelected ? 'bg-gradient-to-br from-orange-400 to-orange-500 shadow-[inset_0_0_15px_rgba(251,146,60,0.4)]' :
+    isValidMove ? 'bg-gradient-to-br from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400' :
+    (isLastMoveFrom || isLastMoveTo) ? 'bg-gradient-to-br from-rose-400 to-rose-500 hover:from-rose-300 hover:to-rose-400' :
+    ((actualR + actualC) % 2 === 0) 
+      ? 'bg-gradient-to-br from-slate-100 to-slate-200 hover:from-slate-50 hover:to-slate-100' 
+      : 'bg-gradient-to-br from-slate-300 to-slate-400 hover:from-slate-250 hover:to-slate-350'
+  } border-[0.5px] border-slate-400/30`}
+  style={{ flex: 1, aspectRatio: '1/1' }}
+>
           {cell ? (canSee ? (
             <div className="w-full h-full p-[2px] md:p-1">
               <PieceIcon rank={cell.r} player={cell.p} RANKS={RANKS} />
