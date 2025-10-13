@@ -8,12 +8,15 @@ window.TILESET_CONFIG = {
   cellHeight: 200,
   columns: 5,
   totalWidth: 1200,
-  totalHeight: 600
+  totalHeight: 800
 };
 
-window.PieceIcon = function PieceIcon({ rank, player, RANKS }) {
-  const rankData = RANKS.find(r => r.r === rank);
-  if (!rankData) return <span className="text-yellow-600 font-bold text-2xl">{rank}</span>;
+window.PieceIcon = function PieceIcon({ rank, player, RANKS, isHidden }) {
+  const [hasError, setHasError] = React.useState(false);
+  
+  const rankData = isHidden ? { tileX: 0, tileY: 3 } : RANKS.find(r => r.r === rank);
+  
+  if (!rankData && !isHidden) return <span className="text-yellow-600 font-bold text-2xl">{rank}</span>;
 
   const { tileX, tileY } = rankData;
   const padding = 30;
@@ -22,14 +25,12 @@ window.PieceIcon = function PieceIcon({ rank, player, RANKS }) {
   const extractWidth = 240 - (padding * 2);
   const extractHeight = 200 - (padding * 2);
 
-  const [hasError, setHasError] = React.useState(false);
-
   if (hasError) {
     return (
       <div className={`w-full h-full flex items-center justify-center text-xs md:text-sm font-bold font-serif ${
         player === 2 ? 'text-blue-400 bg-blue-900' : 'text-yellow-400 bg-yellow-900'
       } rounded border-2 ${player === 2 ? 'border-blue-600' : 'border-yellow-600'}`}>
-        {rank}
+        {isHidden ? '?' : rank}
       </div>
     );
   }
@@ -45,15 +46,17 @@ window.PieceIcon = function PieceIcon({ rank, player, RANKS }) {
     >
       <image
         href={window.TILESET_CONFIG.url}
-        width="1200"
-        height="600"
+        width={window.TILESET_CONFIG.totalWidth}
+        height={window.TILESET_CONFIG.totalHeight}
         style={{ imageRendering: 'crisp-edges' }}
-        onError={() => setHasError(true)}
+        onError={(e) => {
+          console.error('Image load error', e);
+          setHasError(true);
+        }}
       />
     </svg>
   );
 }
-
 window.HomeScreen = function HomeScreen({ onModeSelect, devMode, setDevMode }) {
   return (
     <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
@@ -248,10 +251,14 @@ window.GameBoard = function GameBoard({ board, phase, mode, multiplayerMode, tur
             <div className="w-full h-full p-[2px] md:p-1">
               <PieceIcon rank={cell.r} player={cell.p} RANKS={RANKS} />
             </div>
-          ) :
-            <div className="text-xl md:text-2xl font-serif text-yellow-600">?</div>) : ''}
-        </div>
-      );
+          ) : (
+            <div className="w-full h-full p-[2px] md:p-1">
+              <PieceIcon rank={null} player={cell.p} RANKS={RANKS} isHidden={true} />
+            </div>
+          )) : ''}
+                  </div>
+                );
+                
     }
     rows.push(
       <div key={r} className="flex" style={{ flex: 1, minHeight: 0 }}>
