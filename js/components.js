@@ -413,13 +413,7 @@ window.BattleReportModal = function BattleReportModal({ battleResult, showingBat
                 <div className="text-3xl">⚔</div>
                 <div className="flex flex-col items-center">
                   <div className="w-16 h-16 mb-1 flex items-center justify-center">
-                    {(battleResult.attacker === 'SPY' && battleResult.result === 'lose') ||
-                     (battleResult.attacker === 'PVT' && battleResult.result === 'lose') ||
-                     (battleResult.defender === 'FLAG') ? (
-                      <PieceIcon rank={battleResult.defender} player={battleResult.player === 1 ? 2 : 1} RANKS={RANKS} />
-                    ) : (
-                      <div className="text-4xl text-yellow-600">?</div>
-                    )}
+                    <div className="text-4xl text-yellow-600">?</div>
                   </div>
                   <div className="text-xs text-yellow-600">Enemy</div>
                 </div>
@@ -428,13 +422,7 @@ window.BattleReportModal = function BattleReportModal({ battleResult, showingBat
               <>
                 <div className="flex flex-col items-center">
                   <div className="w-16 h-16 mb-1 flex items-center justify-center">
-                    {(battleResult.defender === 'SPY' && battleResult.result === 'win') ||
-                     (battleResult.defender === 'PVT' && battleResult.result === 'win') ||
-                     (battleResult.attacker === 'FLAG') ? (
-                      <PieceIcon rank={battleResult.attacker} player={battleResult.player} RANKS={RANKS} />
-                    ) : (
-                      <div className="text-4xl text-yellow-600">?</div>
-                    )}
+                    <div className="text-4xl text-yellow-600">?</div>
                   </div>
                   <div className="text-xs text-yellow-600">Enemy</div>
                 </div>
