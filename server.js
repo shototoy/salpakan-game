@@ -3,30 +3,27 @@
 // ============================================
 
 const WebSocket = require('ws');
-const port = process.env.PORT || 8080;
-const wss = new WebSocket.Server({ port });
-console.log(`🎮 Salpakan Server running on port ${port}`);
 const http = require('http');
-const server = http.createServer((req, res) => {
+
+const port = process.env.PORT || 8080;
+
+const server = http.createServer((req, res) => {  
   if (req.url === '/health') {
     res.writeHead(200);
     res.end('OK');
   }
 });
 
-server.on('upgrade', (request, socket, head) => {
-  wss.handleUpgrade(request, socket, head, (ws) => {
-    wss.emit('connection', ws, request);
-  });
-});
+const wss = new WebSocket.Server({ server });
+
+console.log(`🎮 Salpakan Server running on port ${port}`);
+console.log(`🎮 WebSocket available at ws://localhost:${port}`);
 
 server.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+  console.log(`✅ Server listening on port ${port}`);
 });
 
 const rooms = new Map();
-
-console.log('🎮 Salpakan Server running on ws://localhost:8080');
 
 wss.on('connection', (ws) => {
   console.log('📡 New connection');
@@ -56,10 +53,6 @@ wss.on('connection', (ws) => {
     handleDisconnect(ws);
   });
 });
-
-// ============================================
-// HANDLERS
-// ============================================
 
 function handleGetRooms(ws) {
   const roomList = Array.from(rooms.entries()).map(([id, room]) => ({
@@ -235,10 +228,6 @@ function handleDisconnect(ws) {
     console.log(`🗑️  Empty room deleted`);
   }
 }
-
-// ============================================
-// UTILITIES
-// ============================================
 
 function broadcastToRoom(roomId, message, excludePlayerId = null) {
   const room = rooms.get(roomId);
