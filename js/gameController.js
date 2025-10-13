@@ -41,6 +41,8 @@ window.GameController = function GameController() {
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [opponentPiecesPlaced, setOpponentPiecesPlaced] = useState(0);
   const [opponentLastSelected, setOpponentLastSelected] = useState(null);
+  const [showVictory, setShowVictory] = useState(false);
+  const [victoryData, setVictoryData] = useState(null);
 
   // ============================================
   // WEBSOCKET EFFECTS
@@ -197,8 +199,15 @@ window.GameController = function GameController() {
       };
 
       const handleGameEnd = (data) => {
+        console.log('Game end received:', data);
         setMsg(data.message);
         setPhase('ended');
+        setVictoryData({ 
+          winner: data.winner, 
+          victoryType: data.victoryType || 'flag_captured' 
+        });
+        setShowVictory(true);
+        console.log('Victory modal should show now', { showVictory: true, victoryData: data });
       };
 
       if (screen === 'room') {
@@ -258,6 +267,8 @@ window.GameController = function GameController() {
     setIsRoomReady(false);
     setMyReadyState(false);
     setOpponentReadyState(false);
+    setShowVictory(false);
+    setVictoryData(null);
     WebSocketManager.disconnect();
   }, []);
 
@@ -440,17 +451,20 @@ window.GameController = function GameController() {
             newBattleResult = { attacker: attacker.r, defender: defender.r, result: 'win', player: turn };
             
             if (defender.r === 'FLAG') {
-              setMsg(`Victory - Commander ${turn}!`);
               setBoard(nb);
               setMoves([]);
               setSel(null);
               setDefeated(newDefeated);
               setPhase('ended');
+              setVictoryData({ winner: turn, victoryType: 'flag_captured' });
+              setShowVictory(true);
+              console.log('Victory triggered - flag captured by player', turn);
               if (multiplayerMode === 'online') {
                 WebSocketManager.send({
                   type: 'gameEnd',
                   roomId,
                   winner: turn,
+                  victoryType: 'flag_captured',
                   message: `Victory - Commander ${turn}!`
                 });
               }
@@ -463,17 +477,20 @@ window.GameController = function GameController() {
             
             if (attacker.r === 'FLAG') {
               const winner = turn === 1 ? 2 : 1;
-              setMsg(`Victory - Commander ${winner}!`);
               setBoard(nb);
               setMoves([]);
               setSel(null);
               setDefeated(newDefeated);
               setPhase('ended');
+              setVictoryData({ winner, victoryType: 'flag_captured' });
+              setShowVictory(true);
+              console.log('Victory triggered - flag captured by player', winner);
               if (multiplayerMode === 'online') {
                 WebSocketManager.send({
                   type: 'gameEnd',
                   roomId,
                   winner,
+                  victoryType: 'flag_captured',
                   message: `Victory - Commander ${winner}!`
                 });
               }
@@ -497,6 +514,28 @@ window.GameController = function GameController() {
         setSel(null);
         setMoves([]);
         
+        // Check for flag reaching enemy territory victory
+        if (attacker.r === 'FLAG') {
+          const flagVictory = GameLogic.checkFlagVictory(nb, turn);
+          console.log('Checking flag victory for player', turn, ':', flagVictory);
+          if (flagVictory) {
+            setPhase('ended');
+            setVictoryData({ winner: turn, victoryType: 'flag_reached' });
+            setShowVictory(true);
+            console.log('Victory triggered - flag reached territory by player', turn);
+            if (multiplayerMode === 'online') {
+              WebSocketManager.send({
+                type: 'gameEnd',
+                roomId,
+                winner: turn,
+                victoryType: 'flag_reached',
+                message: `Victory - Commander ${turn}!`
+              });
+            }
+            return;
+          }
+        }
+        
         const moveData = { from: [sr, sc], to: [r, c], turn };
         setLastMove(moveData);
         
@@ -519,7 +558,9 @@ window.GameController = function GameController() {
           setShowTurnLock,
           setShowingBattleForPlayer,
           setShowBattleReport,
-          setPhase
+          setPhase,
+          setVictoryData,
+          setShowVictory
         };
         
         modeHandler.afterMove(gameState, setters, defender !== null, WebSocketManager, roomId);
@@ -602,6 +643,11 @@ window.GameController = function GameController() {
       roomId
     });
   };
+
+  // Debug effect to log victory state changes
+  useEffect(() => {
+    console.log('Victory state changed:', { showVictory, victoryData, phase });
+  }, [showVictory, victoryData, phase]);
 
   // ============================================
   // RENDER
@@ -693,6 +739,14 @@ window.GameController = function GameController() {
           onAutoSetup={handleAutoSetup}
           onReset={resetGame}
         />
+
+        {showVictory && victoryData && (
+          <VictoryModal 
+            winner={victoryData.winner}
+            victoryType={victoryData.victoryType}
+            onBackToHome={resetGame}
+          />
+        )}
 
         {showPicker && (
           <UnitPicker 

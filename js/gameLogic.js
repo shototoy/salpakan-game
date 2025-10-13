@@ -80,6 +80,41 @@ const GameLogic = {
       .filter(([nr, nc]) => nr >= 0 && nr < 8 && nc >= 0 && nc < 9 && (!b[nr][nc] || b[nr][nc].p !== b[r][c].p));
   },
 
+  checkFlagVictory: (b, player) => {
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 9; c++) {
+        const cell = b[r][c];
+        if (cell?.r === 'FLAG' && cell.p === player) {
+          const targetRow = player === 1 ? 0 : 7;
+          if (r === targetRow) {
+            const adjacentDirs = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]];
+            const hasNearbyEnemy = adjacentDirs.some(([dr, dc]) => {
+              const nr = r + dr;
+              const nc = c + dc;
+              if (nr < 0 || nr >= 8 || nc < 0 || nc >= 9) return false;
+              const neighbor = b[nr][nc];
+              return neighbor && neighbor.p !== player;
+            });
+            
+            const twoStepDirs = [[-2, 0], [2, 0], [0, -2], [0, 2], [-2, -1], [-2, 1], [2, -1], [2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2]];
+            const hasTwoStepEnemy = twoStepDirs.some(([dr, dc]) => {
+              const nr = r + dr;
+              const nc = c + dc;
+              if (nr < 0 || nr >= 8 || nc < 0 || nc >= 9) return false;
+              const neighbor = b[nr][nc];
+              return neighbor && neighbor.p !== player;
+            });
+            
+            if (!hasNearbyEnemy && !hasTwoStepEnemy) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  },
+
   aiMove: (b) => {
     const pieces = [];
     for (let r = 0; r < 8; r++) {

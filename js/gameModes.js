@@ -16,7 +16,7 @@ const GameModes = {
     
     afterMove: (gameState, setters) => {
       const { board, defeated } = gameState;
-      const { setBoard, setTurn, setMsg, setDefeated, setLastMove, setPhase } = setters;
+      const { setBoard, setTurn, setMsg, setDefeated, setLastMove, setPhase, setVictoryData, setShowVictory } = setters;
       
       setTurn(2);
       setMsg('Enemy Calculating...');
@@ -50,10 +50,11 @@ const GameModes = {
             nb2[ar][ac] = null;
             newDefeated2[def.p] = [...newDefeated2[def.p], def.r];
             if (def.r === 'FLAG') { 
-              setMsg('Defeat - Enemy Prevails'); 
               setBoard(nb2); 
               setDefeated(newDefeated2); 
               setPhase('ended');
+              setVictoryData({ winner: 2, victoryType: 'flag_captured' });
+              setShowVictory(true);
               return; 
             }
           } else if (res === 'lose') {
@@ -68,6 +69,18 @@ const GameModes = {
         } else {
           nb2[tr][tc] = aiA;
           nb2[ar][ac] = null;
+        }
+        
+        if (aiA.r === 'FLAG') {
+          const flagVictory = GameLogic.checkFlagVictory(nb2, 2);
+          if (flagVictory) {
+            setBoard(nb2);
+            setDefeated(newDefeated2);
+            setPhase('ended');
+            setVictoryData({ winner: 2, victoryType: 'flag_reached' });
+            setShowVictory(true);
+            return;
+          }
         }
         
         setBoard(nb2);
