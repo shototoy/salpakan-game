@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salpakan: Imperium</title>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { margin: 0; padding: 0; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="module">
+    import { GameLogic, RANKS } from './js/gameLogic.js';
+    import GameModes from './js/gameModes.js';
+    import WebSocketManager from './js/webSocketManager.js';
+    
+    window.GameLogic = GameLogic;
+    window.RANKS = RANKS;
+    window.GameModes = GameModes;
+    window.WebSocketManager = WebSocketManager;
+  </script>
+  
+  <script type="text/babel" src="./js/components.js"></script>
+  <script type="text/babel" src="./js/gameController.js"></script>
+  
+  <script type="text/babel">
+    ReactDOM.createRoot(document.getElementById('root')).render(<GameController />);
+  </script>
+</body>
+</html>
