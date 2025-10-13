@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Platform](https://img.shields.io/badge/platform-apk-green .svg)
+![Platform](https://img.shields.io/badge/platform-apk-green.svg)
 ![Platform](https://img.shields.io/badge/platform-web-orange.svg)
 ![Multiplayer](https://img.shields.io/badge/multiplayer-enabled-brightgreen.svg)
 
