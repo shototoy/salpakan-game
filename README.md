@@ -1,154 +1,230 @@
-# Salpakan: Imperium - Multiplayer Setup
+# Salpakan: Imperium
 
-## Overview
-This is a modularized version of Salpakan: Imperium with WebSocket-based multiplayer support.
+<div align="center">
 
-## Features
-- **Modular Architecture**: Clean separation of concerns with component-based structure
-- **AI Mode**: Play against computer opponent
-- **Local Multiplayer**: Hot-seat mode on same device
-- **Online Multiplayer**: Play over network using WebSocket
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Status](https://img.shields.io/badge/status-active-success.svg)
+![Platform](https://img.shields.io/badge/platform-web-orange.svg)
+![Multiplayer](https://img.shields.io/badge/multiplayer-enabled-brightgreen.svg)
 
-## Project Structure
-```
-salpakan-imperium/
-├── index.html          # Main game client (modular React app)
-├── server.js           # WebSocket server
-├── package.json        # Node.js dependencies
-└── README.md          # This file
-```
+### *Ancient Strategy. Modern Battles.*
 
-## Setup Instructions
+A traditional Filipino strategy game reimagined for the digital age. Deploy your forces, outmaneuver your opponents, and capture the enemy flag in this timeless battle of wits.
 
-### 1. Install Node.js
-Make sure you have Node.js installed (v14 or higher)
-- Download from: https://nodejs.org/
+[Play Now](#quick-start) • [Game Rules](#game-rules) • [Features](#game-features)
 
-### 2. Install Dependencies
-```bash
-npm install
-```
+</div>
 
-### 3. Start the WebSocket Server
-```bash
-npm start
-```
+---
 
-The server will run on `ws://localhost:8080`
+## Game Features
 
-For development with auto-restart:
-```bash
-npm run dev
-```
+### Strategic Depth
+Deploy your pieces with precision and foresight. Every move counts in this timeless battle of wits and strategy. Master the art of positioning and anticipation to dominate the battlefield.
 
-### 4. Open the Game Client
-Simply open `index.html` in your browser. You can:
-- Double-click the file
-- Use a local server: `npx serve .` or `python -m http.server`
+### Real-Time Combat
+Engage opponents in fast-paced, intense matches. Outsmart and outmaneuver your rivals with calculated moves and tactical brilliance.
 
-## How to Play Multiplayer
+### Multiple Game Modes
+- **Online Multiplayer** - Connect with players worldwide through network battles
+- **Local Multiplayer** - Challenge friends on the same device with hot-seat mode  
+- **AI Opponent** - Practice your skills against an intelligent computer opponent
 
-### Online Mode (Network):
-1. **Player 1**: Click "VS NETWORK COMMANDER" → "CREATE ROOM"
-2. Share the 6-character Room ID with Player 2
-3. **Player 2**: Click "VS NETWORK COMMANDER" → Enter Room ID → "JOIN ROOM"
-4. Both players click "START BATTLE"
-5. Deploy your forces (arrange pieces on your side)
-6. Take turns making moves
+### Tactical Gameplay
+Each piece holds unique powers and ranks. Position them wisely, anticipate your opponent's moves, and emerge victorious through superior strategy.
 
-### Local Mode:
-1. Click "VS LOCAL COMMANDER"
-2. Player 1 deploys forces → Pass device to Player 2
-3. Player 2 deploys forces
-4. Players alternate turns (device is passed between turns)
+### Cross-Platform Ready
+Play seamlessly on desktop or mobile browsers. The responsive design ensures a perfect experience on any device.
 
-### AI Mode:
-1. Click "VS MACHINE"
-2. Deploy your forces
-3. Play against the computer AI
+### Quick Matches
+Experience intense 5-10 minute matches perfect for quick gaming sessions or extended strategic battles.
+
+---
 
 ## Game Rules
 
-### Piece Hierarchy (Strongest to Weakest):
-1. 5★ General (1)
-2. 4★ General (1)
-3. 3★ General (1)
-4. 2★ General (1)
-5. 1★ General (1)
-6. Colonel (1)
-7. Lt. Colonel (1)
-8. Major (1)
-9. Captain (1)
-10. 1st Lieutenant (1)
-11. 2nd Lieutenant (1)
-12. Sergeant (2)
-13. Private (5)
-14. Spy (2) - Can eliminate all except Private
-15. Flag (1) - Cannot move, capturing it wins the game
+### Army Composition
 
-### Special Rules:
-- **Spy** defeats all pieces except Private
-- **Private** defeats Spy
-- **Equal ranks** result in both pieces being eliminated
-- **Flag** cannot move and loses to any piece
+Each player commands **21 pieces** with unique ranks and abilities:
 
-### How to Win:
-- Capture the opponent's Flag
-- Eliminate all opponent pieces that can move
+<table>
+<thead>
+<tr>
+<th>Rank</th>
+<th>Piece</th>
+<th>Quantity</th>
+<th>Power Level</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>1</td><td>Five-Star General</td><td>1</td><td>Highest</td></tr>
+<tr><td>2</td><td>Four-Star General</td><td>1</td><td>⬆️</td></tr>
+<tr><td>3</td><td>Three-Star General</td><td>1</td><td>⬆️</td></tr>
+<tr><td>4</td><td>Two-Star General</td><td>1</td><td>⬆️</td></tr>
+<tr><td>5</td><td>One-Star General</td><td>1</td><td>⬆️</td></tr>
+<tr><td>6</td><td>Colonel</td><td>1</td><td>⬆️</td></tr>
+<tr><td>7</td><td>Lt. Colonel</td><td>1</td><td>⬆️</td></tr>
+<tr><td>8</td><td>Major</td><td>1</td><td>⬆️</td></tr>
+<tr><td>9</td><td>Captain</td><td>1</td><td>⬆️</td></tr>
+<tr><td>10</td><td>1st Lieutenant</td><td>1</td><td>⬆️</td></tr>
+<tr><td>11</td><td>2nd Lieutenant</td><td>1</td><td>⬆️</td></tr>
+<tr><td>12</td><td>Sergeant</td><td>2</td><td>⬆️</td></tr>
+<tr><td>13</td><td>Private</td><td>5</td><td>⬆️</td></tr>
+<tr><td>14</td><td>Spy</td><td>2</td><td>Special</td></tr>
+<tr><td>15</td><td>Flag</td><td>1</td><td>Objective</td></tr>
+</tbody>
+</table>
 
-## Development Notes
+### Battle Mechanics
 
-### Modular Components:
-- `GameLogic`: Core game mechanics (board, pieces, battle system)
-- `WebSocketManager`: Network communication handler
-- `PieceIcon`: SVG-based piece renderer
-- `HomeScreen`: Main menu
-- `MultiplayerLobby`: Room creation/joining
-- `RoomWaiting`: Waiting room for players
-- `GameBoard`: Main game board renderer
-- `Sidebar`: Game info and controls
-- `UnitPicker`: Piece selection during setup
-- `BattleReportModal`: Combat result display
-- `TurnLockModal`: Turn transition screen
+#### Standard Combat
+Higher rank defeats lower rank. When two pieces of equal rank battle, both are eliminated.
 
-### WebSocket Events:
-- `join`: Player joins a room
-- `roomJoined`: Confirmation of room join
-- `playerJoined`: Another player joined
-- `startGame`: Game initialization
-- `setupComplete`: Player finished setup
-- `move`: Player made a move
-- `gameEnd`: Game over
+#### Special Rules
 
-## Troubleshooting
+**The Spy** - A master of deception
+- Defeats **ALL** pieces from Five-Star General down to Sergeant
+- **EXCEPTION**: Defeated by Private
 
-### WebSocket Connection Failed:
-- Ensure server is running (`npm start`)
-- Check that port 8080 is not in use
-- Verify firewall settings allow WebSocket connections
+**The Private** - The lowly soldier's advantage
+- Defeats Spy
+- Loses to all other ranked pieces
 
-### Game Not Loading:
-- Check browser console for errors
-- Ensure all files are in the same directory
-- Try using a local web server instead of file:// protocol
+**The Flag** - Your objective
+- Cannot move from its position
+- Loses to any attacking piece
+- Must be protected at all costs
 
-### Network Play Issues:
-- Both players must connect to same server
-- For LAN play: Use server's local IP (e.g., `ws://192.168.1.x:8080`)
-- For internet play: Configure port forwarding or use a VPS
+### Victory Conditions
 
-## Future Enhancements
-- [ ] Add chat functionality
-- [ ] Implement game replay system
-- [ ] Add ranked matchmaking
-- [ ] Create lobby system with multiple rooms
-- [ ] Add sound effects and music
-- [ ] Implement different game modes
-- [ ] Add timer per turn
-- [ ] Create spectator mode
+Achieve victory through either objective:
 
-## Credits
-Traditional Filipino strategy game adapted to modern web platform.
+1. **Capture the Flag** - Successfully attack and capture the enemy flag
+2. **Total Domination** - Eliminate all opponent pieces that can move
+
+---
+
+## How to Play
+
+### Setup Phase
+
+1. **Choose Your Mode** - Select Online, Local, or AI opponent
+2. **Deploy Your Forces** - Arrange your 21 pieces on your side of the 9×8 board
+3. **Strategic Positioning** - Hide your Flag, place Spies tactically, set ambushes
+4. **Confirm Ready** - Lock in your deployment to begin battle
+
+### Battle Phase
+
+**Movement** - Click your piece, then click an adjacent square to move (vertical or horizontal only)
+
+**Combat** - Move into an enemy piece's square to engage in battle
+
+**Information** - Enemy pieces are hidden until engaged in combat
+
+**Strategy** - Use revealed information to deduce enemy positions and plan attacks
+
+### Winning Strategies
+
+#### Beginner Tips
+- Keep your Flag in the back rows for protection
+- Don't move your Flag - it cannot move and shouldn't be exposed
+- Use Privates as scouts to test enemy pieces
+- Remember which pieces have been eliminated
+
+#### Advanced Tactics
+- **Deception** - Move pieces in patterns that disguise your Flag's location
+- **Spy Traps** - Position Spies near likely paths to high-value targets
+- **Center Control** - Dominate the middle for maximum board coverage
+- **Sacrifice Plays** - Trade lower pieces to reveal enemy positions
+- **Memory Game** - Track revealed enemy pieces for tactical advantage
+
+#### Expert Strategies
+- **Bait and Switch** - Use decoy pieces to draw out enemy forces
+- **Formation Breaks** - Force opponents into unfavorable positions
+- **Tempo Control** - Make moves that limit opponent options
+- **Endgame Planning** - Save key pieces for final push to enemy Flag
+
+---
+
+## Quick Start
+
+### For Players
+
+1. Open `index.html` in your web browser
+2. Select your preferred game mode
+3. Deploy your forces strategically
+4. Begin your battle for supremacy
+
+### For Multiplayer
+
+**Online Mode:**
+- Host creates a room and shares the 6-character Room ID
+- Guest enters Room ID to join
+- Both players deploy forces and battle begins
+
+**Local Mode:**
+- Pass device between players after each turn
+- Perfect for face-to-face strategic duels
+
+---
+
+## About Salpakan
+
+Salpakan is an ancient Filipino strategy game that has been played for generations across the Philippines. The game combines elements of tactics, memory, and psychological warfare into an engaging experience where every decision matters.
+
+This digital version preserves the classic gameplay while introducing modern features:
+- Clean, intuitive interface
+- Online multiplayer connectivity
+- Intelligent AI opponent
+- Responsive cross-platform design
+
+Whether you're a casual player seeking quick matches or a competitive strategist pursuing deep tactical gameplay, Salpakan: Imperium delivers endless challenge and excitement.
+
+### Game Characteristics
+
+**Pure Strategy** - Victory comes entirely from skill and tactical decision-making
+
+**Hidden Information** - Enemy pieces remain concealed until combat engagement
+
+**Psychological Warfare** - Bluff, deceive, and outthink your opponent
+
+**Quick Sessions** - Fast setup and gameplay for engaging 5-10 minute matches
+
+**Infinite Depth** - Simple rules with complex strategic possibilities
+
+---
+
+## Technical Details
+
+### Technology Stack
+- Pure HTML5/CSS3/JavaScript
+- React for component architecture
+- WebSocket for real-time multiplayer
+- Responsive design for all devices
+
+### Browser Support
+- Chrome (recommended)
+- Firefox
+- Safari
+- Edge
+- Mobile browsers
+
+---
 
 ## License
-MIT License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+Traditional Filipino strategy game adapted for modern web platforms. Preserving cultural heritage through interactive digital experiences.
+
+---
+
+<div align="center">
+
+**Ready to Command Your Forces?**
+
+Deploy your army, outsmart your opponents, and claim victory in Salpakan: Imperium
+
+</div>
