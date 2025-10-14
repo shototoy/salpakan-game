@@ -1,5 +1,7 @@
 const WebSocket = require('ws');
 const http = require('http');
+const dgram = require('dgram');
+const os = require('os');
 
 const port = process.env.PORT || 8080;
 
@@ -12,8 +14,56 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocket.Server({ server });
 
+// ============================================
+// SERVER BROADCAST DISCOVERY
+// ============================================
+
+function getLocalIP() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return '127.0.0.1';
+}
+
+const localIP = getLocalIP();
+const udpServer = dgram.createSocket('udp4');
+
+udpServer.on('message', (msg, rinfo) => {
+  try {
+    const data = JSON.parse(msg.toString());
+    if (data.type === 'discover') {
+      const response = JSON.stringify({ 
+        type: 'serverFound', 
+        ip: localIP,
+        wsPort: port
+      });
+      udpServer.send(response, 0, response.length, rinfo.port, rinfo.address);
+      console.log(`🔍 Discovery request from ${rinfo.address}:${rinfo.port}`);
+    }
+  } catch (error) {
+    console.error('UDP error:', error);
+  }
+});
+
+udpServer.on('error', (err) => {
+  console.error('UDP error:', err);
+});
+
+udpServer.bind(9876, () => {
+  console.log(`📡 Discovery server listening on UDP port 9876`);
+});
+
+// ============================================
+// WEBSOCKET SERVER
+// ============================================
+
 console.log(`🎮 Salpakan Server running on port ${port}`);
-console.log(`🎮 WebSocket available at ws://localhost:${port}`);
+console.log(`🎮 WebSocket available at ws://${localIP}:${port}`);
 
 server.listen(port, () => {
   console.log(`✅ Server listening on port ${port}`);
@@ -257,6 +307,7 @@ function broadcastToRoom(roomId, message, excludePlayerId = null) {
 
 process.on('SIGINT', () => {
   console.log('\n👋 Shutting down...');
+  udpServer.close();
   wss.close(() => {
     console.log('✅ Server closed');
     process.exit(0);
