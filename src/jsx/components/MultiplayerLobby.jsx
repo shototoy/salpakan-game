@@ -2,43 +2,40 @@ import React, { useState, useEffect } from 'react';
 import ServerSettings from './ServerSettings';
 
 export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roomId, setRoomId, WebSocketManager, onRefreshRooms }) {
-  const [showServerSelect, setShowServerSelect] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showServerSelect, setShowServerSelect] = useState(false);
   const [availableRooms, setAvailableRooms] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [discoveryStatus, setDiscoveryStatus] = useState('');
-  const servers = WebSocketManager.getAllServers();
+  const [enabledServers, setEnabledServers] = useState([]);
 
   useEffect(() => {
+    loadEnabledServers();
     fetchAllRooms();
-    const interval = setInterval(fetchAllRooms, 5000);
+    const interval = setInterval(fetchAllRooms, 2000);
     return () => clearInterval(interval);
   }, []);
 
+  // ============================================
+  // SERVER MANAGEMENT
+  // ============================================
+
+  const loadEnabledServers = () => {
+    const servers = WebSocketManager.getEnabledServers();
+    setEnabledServers(servers);
+  };
+
+  // ============================================
+  // ROOM MANAGEMENT
+  // ============================================
+
   const fetchAllRooms = async () => {
     setIsLoading(true);
-    setDiscoveryStatus('Scanning network...');
     
     try {
-      const discoveryPromise = WebSocketManager.startServerDiscovery(6000);
-      
-      const checkInterval = setInterval(() => {
-        const discovered = WebSocketManager.discoveredServers;
-        if (discovered.length > 0) {
-          setDiscoveryStatus(`Found ${discovered.length} server${discovered.length > 1 ? 's' : ''}...`);
-        }
-      }, 500);
-      
-      await discoveryPromise;
-      clearInterval(checkInterval);
-      
-      setDiscoveryStatus('Fetching rooms...');
       const rooms = await WebSocketManager.getRoomsFromAllServers();
       setAvailableRooms(rooms);
-      setDiscoveryStatus('');
     } catch (error) {
       console.error('Failed to fetch rooms:', error);
-      setDiscoveryStatus('Discovery failed');
     } finally {
       setIsLoading(false);
     }
@@ -53,19 +50,39 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
     setShowServerSelect(false);
   };
 
-  const handleJoinRoom = (room) => {
-    onJoinRoom(room.id, room.serverUrl);
+  const handleShowCreateRoom = () => {
+    loadEnabledServers();
+    const servers = WebSocketManager.getEnabledServers();
+    if (servers.length === 0) {
+      alert('No servers configured. Please add a server in Settings.');
+      setShowSettings(true);
+      return;
+    }
+    
+    if (servers.length === 1) {
+      handleCreateRoom(servers[0].url);
+    } else {
+      setShowServerSelect(true);
+    }
   };
+
+  // ============================================
+  // UI HELPERS
+  // ============================================
 
   const getServerTypeInfo = (server) => {
     if (server.type === 'cloud') {
       return { emoji: '☁️', label: 'Cloud', color: 'from-purple-700 to-purple-800 border-purple-600' };
-    } else if (server.type === 'discovered') {
+    } else if (server.type === 'manual') {
       return { emoji: '🏠', label: 'LAN', color: 'from-blue-700 to-blue-800 border-blue-600' };
     } else {
       return { emoji: '🔧', label: 'Custom', color: 'from-green-700 to-green-800 border-green-600' };
     }
   };
+
+  // ============================================
+  // RENDER
+  // ============================================
 
   return (
     <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
@@ -94,7 +111,7 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
             </button>
             <h3 className="text-xl font-serif font-bold text-yellow-400 mb-4 text-center">Select Server</h3>
             <div className="flex flex-col gap-3">
-              {servers.filter(s => s.enabled).map(server => {
+              {enabledServers.map(server => {
                 const info = getServerTypeInfo(server);
                 return (
                   <button 
@@ -105,37 +122,20 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                       <span>{info.emoji} {server.name}</span>
                       <span className="text-xs opacity-75">{info.label}</span>
                     </div>
+                    {server.ip && (
+                      <div className="text-xs opacity-75 mt-1 font-mono">{server.ip}</div>
+                    )}
                   </button>
                 );
               })}
-              {servers.filter(s => s.enabled).length === 0 && (
-                <div className="text-center py-8">
-                  <p className="text-yellow-600 mb-2">No servers enabled</p>
-                  <button 
-                    onClick={() => setShowSettings(true)}
-                    className="text-blue-400 hover:text-blue-300 text-sm"
-                  >
-                    Configure servers →
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         ) : (
           <>
-            <button onClick={() => setShowServerSelect(true)}
+            <button onClick={handleShowCreateRoom}
               className="w-full px-6 py-4 bg-gradient-to-r from-emerald-700 to-emerald-800 text-white text-xl font-serif font-bold rounded border-2 border-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg mb-4">
               ➕ CREATE ROOM
             </button>
-
-            {isLoading && discoveryStatus && (
-              <div className="mb-4 p-4 bg-zinc-800 rounded border border-yellow-900 text-center">
-                <div className="flex items-center justify-center gap-2">
-                  <div className="animate-spin text-yellow-600">🔄</div>
-                  <p className="text-yellow-600 text-sm">{discoveryStatus}</p>
-                </div>
-              </div>
-            )}
 
             {availableRooms && availableRooms.length > 0 && (
               <div className="mb-4">
@@ -149,26 +149,23 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                     🔄
                   </button>
                 </div>
-                <div className="max-h-48 overflow-y-auto">
+                <div className="max-h-60 overflow-y-auto overflow-x-hidden">
                   {availableRooms.map((room, idx) => {
                     const info = getServerTypeInfo({ 
-                      type: room.server.includes('Cloud') ? 'cloud' : 
-                            room.server.includes('Local') ? 'discovered' : 'custom'
+                      type: room.server.includes('Cloud') ? 'cloud' : 'manual'
                     });
                     return (
                       <button 
                         key={`${room.serverUrl}-${room.id}-${idx}`} 
-                        onClick={() => handleJoinRoom(room)}
-                        className="w-full px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-yellow-400 rounded border border-yellow-800 font-mono mb-2 text-left transition-colors">
+                        onClick={() => onJoinRoom(room.id, room.serverUrl)}
+                        className="w-full px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-yellow-400 rounded border border-yellow-800 font-mono mb-2 text-left transition-colors overflow-hidden">
                         <div className="flex justify-between items-center">
-                          <span className="text-lg font-bold">{room.id}</span>
-                          <div className="flex flex-col items-end">
-                            <span className={`text-xs px-2 py-0.5 rounded ${
+                          <span className="text-lg font-bold truncate">{room.id}</span>
+                          <div className="flex flex-col items-end flex-shrink-0 ml-2">
+                            <span className={`text-xs px-2 py-0.5 rounded whitespace-nowrap ${
                               info.label === 'Cloud' 
                                 ? 'bg-purple-900 text-purple-300'
-                                : info.label === 'LAN'
-                                ? 'bg-blue-900 text-blue-300'
-                                : 'bg-green-900 text-green-300'
+                                : 'bg-blue-900 text-blue-300'
                             }`}>
                               {info.emoji} {room.server}
                             </span>
@@ -200,7 +197,19 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                 maxLength={6}
               />
               <button
-                onClick={() => roomId.length === 6 && handleJoinRoom({ id: roomId, serverUrl: WebSocketManager.getServerUrl() })}
+                onClick={() => {
+                  if (roomId.length === 6) {
+                    const enabledServers = WebSocketManager.getEnabledServers();
+                    if (enabledServers.length === 0) {
+                      alert('No servers configured. Please add a server in Settings.');
+                      setShowSettings(true);
+                      return;
+                    }
+                    const cloudServer = enabledServers.find(s => s.type === 'cloud');
+                    const serverUrl = cloudServer ? cloudServer.url : enabledServers[0].url;
+                    onJoinRoom(roomId, serverUrl);
+                  }
+                }}
                 disabled={roomId.length !== 6}
                 className="w-full px-6 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-lg font-serif font-bold rounded border-2 border-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed hover:from-yellow-600 hover:to-yellow-700">
                 🚪 JOIN ROOM
@@ -216,6 +225,7 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
           onClose={() => setShowSettings(false)}
           onSave={() => {
             setShowSettings(false);
+            loadEnabledServers();
             handleRefresh();
           }}
         />

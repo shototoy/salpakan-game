@@ -5,8 +5,6 @@ const WebSocketManager = {
   currentRoomId: null,
   debugLog: true,
   discoveredServers: [],
-  discoveryTimeout: null,
-  cachedLocalIP: null,
   
   log(message, data = null) {
     if (this.debugLog) {
@@ -48,12 +46,6 @@ const WebSocketManager = {
         url: 'wss://salpakan-game.onrender.com', 
         type: 'cloud',
         enabled: true 
-      },
-      {
-        name: 'Local Network Discovery',
-        url: 'local-discovery',
-        type: 'local',
-        enabled: true
       }
     ];
     
@@ -75,7 +67,27 @@ const WebSocketManager = {
   },
 
   getAllServers() {
-    return [...this.getConfiguredServers(), ...this.discoveredServers];
+    const settings = this.getStoredSettings();
+    const configured = this.getConfiguredServers();
+    
+    if (settings && settings.localServers) {
+      const localServers = settings.localServers
+        .filter(s => s.enabled)
+        .map(s => {
+          const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+          return {
+            name: s.name,
+            url: `${wsProtocol}://${s.ip}:8080`,
+            type: 'manual',
+            enabled: true,
+            ip: s.ip
+          };
+        });
+      
+      return [...configured, ...localServers, ...this.discoveredServers];
+    }
+    
+    return [...configured, ...this.discoveredServers];
   },
 
   getEnabledServers() {
@@ -83,212 +95,62 @@ const WebSocketManager = {
   },
 
   // ============================================
-  // WEBRTC LOCAL IP DETECTION
+  // MANUAL SERVER CONNECTION
   // ============================================
 
-  async detectLocalIP() {
-    if (this.cachedLocalIP) {
-      return this.cachedLocalIP;
+  getCachedServerIP() {
+    try {
+      return localStorage.getItem('lastLocalServerIP');
+    } catch (e) {
+      return null;
     }
-
-    return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        this.log('WebRTC IP detection timeout');
-        resolve(null);
-      }, 2000);
-
-      try {
-        const pc = new RTCPeerConnection({
-          iceServers: []
-        });
-
-        pc.createDataChannel('');
-
-        pc.onicecandidate = (ice) => {
-          if (!ice || !ice.candidate || !ice.candidate.candidate) {
-            return;
-          }
-
-          const candidate = ice.candidate.candidate;
-          const ipMatch = /([0-9]{1,3}(\.[0-9]{1,3}){3})/.exec(candidate);
-          
-          if (ipMatch && ipMatch[1]) {
-            const ip = ipMatch[1];
-            if (ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) {
-              this.cachedLocalIP = ip;
-              this.log('Local IP detected via WebRTC', ip);
-              clearTimeout(timeout);
-              pc.close();
-              resolve(ip);
-            }
-          }
-        };
-
-        pc.createOffer()
-          .then(offer => pc.setLocalDescription(offer))
-          .catch(err => {
-            this.log('WebRTC offer failed', err);
-            clearTimeout(timeout);
-            resolve(null);
-          });
-
-      } catch (error) {
-        this.log('WebRTC not available', error);
-        clearTimeout(timeout);
-        resolve(null);
-      }
-    });
   },
 
-  // ============================================
-  // SERVER DISCOVERY
-  // ============================================
+  cacheServerIP(ip) {
+    try {
+      localStorage.setItem('lastLocalServerIP', ip);
+      this.log('Cached server IP', ip);
+    } catch (e) {}
+  },
 
-  async startServerDiscovery(timeout = 6000) {
-    this.discoveredServers = [];
-    this.log('Starting network discovery');
+  async connectToManualIP(ip) {
+    this.log('Attempting manual connection to', ip);
     
-    const localIP = await this.detectLocalIP();
-    return this.scanNetwork(localIP, timeout);
-  },
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-  scanNetwork(localIP, timeout) {
-    return new Promise((resolve) => {
-      const discovered = new Map();
-      let completedScans = 0;
-      let totalScans = 0;
+      const response = await fetch(`http://${ip}:8080/discover`, {
+        method: 'GET',
+        signal: controller.signal,
+        mode: 'cors'
+      });
 
-      const addServer = (ip, data) => {
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
         const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
         const wsUrl = `${wsProtocol}://${ip}:${data.wsPort || 8080}`;
-        const key = `${ip}:${data.wsPort || 8080}`;
         
-        if (!discovered.has(key)) {
-          discovered.set(key, {
-            name: data.serverName || `Local Server (${ip})`,
-            url: wsUrl,
-            type: 'discovered',
-            enabled: true,
-            discoveredAt: Date.now(),
-            ip: ip
-          });
-          this.log(`✅ Found server at ${ip}`);
-          
-          const results = Array.from(discovered.values());
-          this.discoveredServers = results;
-        }
-      };
-
-      const checkServer = async (ip) => {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 600);
-
-          const response = await fetch(`http://${ip}:8080/discover`, {
-            method: 'GET',
-            signal: controller.signal,
-            mode: 'cors'
-          });
-
-          clearTimeout(timeoutId);
-
-          if (response.ok) {
-            const data = await response.json();
-            addServer(data.ip || ip, data);
-          }
-        } catch (error) {
-        } finally {
-          completedScans++;
-        }
-      };
-
-      const generateIPRanges = () => {
-        const ranges = [];
+        const server = {
+          name: data.serverName || `Local Server (${ip})`,
+          url: wsUrl,
+          type: 'manual',
+          enabled: true,
+          ip: ip
+        };
         
-        if (localIP) {
-          const subnet = localIP.substring(0, localIP.lastIndexOf('.'));
-          const lastOctet = parseInt(localIP.substring(localIP.lastIndexOf('.') + 1));
-          
-          ranges.push({ 
-            prefix: subnet, 
-            priority: 1,
-            ips: this.getSmartRange(lastOctet)
-          });
-          
-          this.log(`Prioritizing subnet ${subnet}.x`);
-        }
-
-        ranges.push(
-          { prefix: '192.168.1', priority: 2, ips: this.getCommonIPs() },
-          { prefix: '192.168.0', priority: 3, ips: this.getCommonIPs() },
-          { prefix: '10.0.0', priority: 4, ips: this.getCommonIPs() },
-          { prefix: '172.16.0', priority: 5, ips: this.getCommonIPs() }
-        );
-
-        return ranges;
-      };
-
-      const scanInBatches = async () => {
-        const ranges = generateIPRanges();
-        const batchSize = 15;
-
-        for (const range of ranges) {
-          const ips = range.ips.map(n => `${range.prefix}.${n}`);
-          totalScans += ips.length;
-
-          for (let i = 0; i < ips.length; i += batchSize) {
-            const batch = ips.slice(i, i + batchSize);
-            await Promise.all(batch.map(ip => checkServer(ip)));
-            
-            if (range.priority === 1 && discovered.size > 0) {
-              this.log('Server found in priority subnet, finishing early');
-              finishDiscovery();
-              return;
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, 50));
-          }
-
-          if (discovered.size > 0 && range.priority <= 2) {
-            this.log('Servers found, skipping remaining ranges');
-            break;
-          }
-        }
-      };
-
-      const finishDiscovery = () => {
-        const results = Array.from(discovered.values());
-        this.discoveredServers = results;
-        this.log(`Discovery complete: found ${results.length} servers (${completedScans}/${totalScans} scanned)`);
-        resolve(results);
-      };
-
-      scanInBatches().then(finishDiscovery);
-
-      setTimeout(finishDiscovery, timeout);
-    });
-  },
-
-  getSmartRange(clientLastOctet) {
-    const range = [];
-    const radius = 10;
-    
-    for (let offset = 0; offset <= radius; offset++) {
-      if (offset === 0) {
-        range.push(clientLastOctet);
-      } else {
-        if (clientLastOctet + offset <= 254) range.push(clientLastOctet + offset);
-        if (clientLastOctet - offset >= 1) range.push(clientLastOctet - offset);
+        this.discoveredServers = [server];
+        this.cacheServerIP(ip);
+        this.log('Successfully connected to server', server);
+        return server;
       }
+    } catch (error) {
+      this.log('Failed to connect', error);
+      return null;
     }
-    
-    range.push(1);
-    
-    return [...new Set(range)];
-  },
-
-  getCommonIPs() {
-    return [1, 2, 3, 4, 5, 10, 20, 50, 100, 254];
+    return null;
   },
 
   // ============================================
@@ -303,8 +165,6 @@ const WebSocketManager = {
   },
 
   async getRoomsFromAllServers() {
-    await this.startServerDiscovery(6000);
-    
     const servers = this.getEnabledServers();
     const allRooms = [];
 

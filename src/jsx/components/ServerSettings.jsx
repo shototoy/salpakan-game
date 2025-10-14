@@ -1,21 +1,19 @@
-// ============================================
-// SERVER SETTINGS COMPONENT
-// ============================================
-
 import React, { useState, useEffect } from 'react';
-import WebSocketManager from '../../js/WebSocketManager';
 
 export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
   const [servers, setServers] = useState([]);
-  const [customLocal, setCustomLocal] = useState({
-    enabled: false,
-    ip: '',
-    port: '8080'
-  });
+  const [localServers, setLocalServers] = useState([]);
+  const [newServerIP, setNewServerIP] = useState('');
+  const [isTestingIP, setIsTestingIP] = useState('');
+  const [testResult, setTestResult] = useState('');
 
   useEffect(() => {
     loadSettings();
   }, []);
+
+  // ============================================
+  // SETTINGS MANAGEMENT
+  // ============================================
 
   const loadSettings = () => {
     const settings = WebSocketManager.getStoredSettings();
@@ -32,13 +30,44 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
         setServers(defaultServers);
       }
 
-      if (settings.localServer) {
-        setCustomLocal(settings.localServer);
+      if (settings.localServers) {
+        setLocalServers(settings.localServers);
       }
     } else {
       setServers(defaultServers);
     }
   };
+
+  const handleSaveSettings = () => {
+    const settings = {
+      servers: servers.map(s => ({ type: s.type, enabled: s.enabled })),
+      localServers: localServers
+    };
+
+    WebSocketManager.saveSettings(settings);
+    
+    WebSocketManager.discoveredServers = [];
+    
+    localServers.filter(s => s.enabled).forEach(server => {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const wsUrl = `${wsProtocol}://${server.ip}:8080`;
+      
+      WebSocketManager.discoveredServers.push({
+        name: server.name,
+        url: wsUrl,
+        type: 'manual',
+        enabled: true,
+        ip: server.ip
+      });
+    });
+    
+    if (onSave) onSave();
+    if (onClose) onClose();
+  };
+
+  // ============================================
+  // CLOUD SERVERS
+  // ============================================
 
   const handleToggleServer = (type) => {
     setServers(prev => prev.map(server => 
@@ -46,152 +75,228 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
     ));
   };
 
-  const handleSaveSettings = () => {
-    const settings = {
-      servers: servers.map(s => ({ type: s.type, enabled: s.enabled })),
-      localServer: customLocal
-    };
-
-    WebSocketManager.saveSettings(settings);
-    
-    if (onSave) onSave();
-    if (onClose) onClose();
-  };
-
-  const handleTestConnection = async (server) => {
+  const handleTestCloudConnection = async (server) => {
+    setIsTestingIP(server.url);
     try {
       const rooms = await WebSocketManager.fetchRoomsFromServer(server.url, server.name);
       alert(`✅ Connected to ${server.name}!\nFound ${rooms.length} rooms.`);
     } catch (error) {
       alert(`❌ Failed to connect to ${server.name}\n${error.message}`);
+    } finally {
+      setIsTestingIP('');
     }
   };
 
+  // ============================================
+  // LOCAL SERVERS
+  // ============================================
+
+  const handleAddLocalServer = async () => {
+    if (!newServerIP.trim()) return;
+    
+    setIsTestingIP(newServerIP);
+    setTestResult('Testing connection...');
+
+    const server = await WebSocketManager.connectToManualIP(newServerIP.trim());
+    
+    if (server) {
+      const exists = localServers.some(s => s.ip === server.ip);
+      if (!exists) {
+        setLocalServers(prev => [...prev, {
+          ip: server.ip,
+          name: server.name,
+          enabled: true,
+          addedAt: Date.now()
+        }]);
+        setTestResult('✅ Server added successfully!');
+        setNewServerIP('');
+      } else {
+        setTestResult('⚠️ Server already exists');
+      }
+    } else {
+      setTestResult('❌ Cannot connect to server');
+    }
+
+    setIsTestingIP('');
+    setTimeout(() => setTestResult(''), 3000);
+  };
+
+  const handleRemoveLocalServer = (ip) => {
+    setLocalServers(prev => prev.filter(s => s.ip !== ip));
+  };
+
+  const handleToggleLocalServer = (ip) => {
+    setLocalServers(prev => prev.map(s => 
+      s.ip === ip ? { ...s, enabled: !s.enabled } : s
+    ));
+  };
+
+  const handleTestLocalConnection = async (server) => {
+    setIsTestingIP(server.ip);
+    
+    const testServer = await WebSocketManager.connectToManualIP(server.ip);
+    
+    if (testServer) {
+      alert(`✅ Connected to ${server.name}!\nIP: ${server.ip}`);
+    } else {
+      alert(`❌ Failed to connect to ${server.name}\n\nMake sure:\n• Server is running (node server.js)\n• You're on the same WiFi network\n• IP address is correct`);
+    }
+    
+    setIsTestingIP('');
+  };
+
+  // ============================================
+  // RENDER
+  // ============================================
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-gradient-to-br from-zinc-900 to-black rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto border-4 border-yellow-700">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-white">Server Settings</h2>
+            <h2 className="text-2xl font-serif font-bold text-yellow-400">Server Settings</h2>
             <button 
               onClick={onClose}
-              className="text-gray-400 hover:text-white text-2xl"
+              className="text-yellow-600 hover:text-yellow-400 text-3xl leading-none"
             >
               ×
             </button>
           </div>
 
-          <div className="space-y-4">
-            {servers.map((server) => (
-              <div key={server.type} className="bg-gray-800 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={server.enabled}
-                      onChange={() => handleToggleServer(server.type)}
-                      className="w-5 h-5 mr-3"
-                    />
-                    <div>
-                      <div className="text-white font-semibold">
-                        {server.name}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {server.url}
-                      </div>
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-serif font-bold text-yellow-400 mb-3">Cloud Servers</h3>
+              <div className="space-y-3">
+                {servers.map((server) => (
+                  <div key={server.type} className="bg-zinc-800 rounded-lg p-4 border border-yellow-900">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="flex items-center cursor-pointer flex-1">
+                        <input
+                          type="checkbox"
+                          checked={server.enabled}
+                          onChange={() => handleToggleServer(server.type)}
+                          className="w-5 h-5 mr-3"
+                        />
+                        <div className="flex-1">
+                          <div className="text-yellow-400 font-semibold">
+                            {server.name}
+                          </div>
+                          <div className="text-xs text-gray-400 font-mono">
+                            {server.url}
+                          </div>
+                        </div>
+                      </label>
                     </div>
-                  </label>
-                </div>
-                
-                {server.enabled && (
+                    
+                    {server.enabled && (
+                      <button
+                        onClick={() => handleTestCloudConnection(server)}
+                        disabled={isTestingIP === server.url}
+                        className="mt-2 px-3 py-1 bg-blue-700 hover:bg-blue-600 text-white text-sm rounded disabled:opacity-50"
+                      >
+                        {isTestingIP === server.url ? '⏳ Testing...' : '🔌 Test Connection'}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-serif font-bold text-yellow-400 mb-3">Local Servers</h3>
+              
+              <div className="bg-zinc-800 rounded-lg p-4 border border-yellow-900 mb-3">
+                <p className="text-yellow-600 text-xs mb-2">Add Local Server</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newServerIP}
+                    onChange={(e) => setNewServerIP(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddLocalServer()}
+                    placeholder="e.g., 192.168.1.5"
+                    className="flex-1 px-3 py-2 bg-black text-yellow-400 border-2 border-yellow-800 rounded font-mono text-sm"
+                    disabled={!!isTestingIP}
+                  />
                   <button
-                    onClick={() => handleTestConnection(server)}
-                    className="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded"
+                    onClick={handleAddLocalServer}
+                    disabled={!newServerIP.trim() || !!isTestingIP}
+                    className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Test Connection
+                    {isTestingIP === newServerIP ? '⏳' : '➕'}
                   </button>
+                </div>
+                {testResult && (
+                  <p className="text-xs mt-2 text-center text-yellow-400">{testResult}</p>
                 )}
               </div>
-            ))}
 
-            <div className="bg-gray-800 rounded-lg p-4">
-              <label className="flex items-center cursor-pointer mb-3">
-                <input
-                  type="checkbox"
-                  checked={customLocal.enabled}
-                  onChange={(e) => setCustomLocal(prev => ({ 
-                    ...prev, 
-                    enabled: e.target.checked 
-                  }))}
-                  className="w-5 h-5 mr-3"
-                />
-                <span className="text-white font-semibold">
-                  Custom Local Server
-                </span>
-              </label>
-
-              {customLocal.enabled && (
-                <div className="ml-8 space-y-3">
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">
-                      IP Address
-                    </label>
-                    <input
-                      type="text"
-                      value={customLocal.ip}
-                      onChange={(e) => setCustomLocal(prev => ({ 
-                        ...prev, 
-                        ip: e.target.value 
-                      }))}
-                      placeholder="192.168.1.100"
-                      className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">
-                      Port
-                    </label>
-                    <input
-                      type="text"
-                      value={customLocal.port}
-                      onChange={(e) => setCustomLocal(prev => ({ 
-                        ...prev, 
-                        port: e.target.value 
-                      }))}
-                      placeholder="8080"
-                      className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="text-xs text-gray-400 bg-gray-900 p-2 rounded">
-                    💡 Tip: Find the server's IP by running <code className="text-blue-400">ipconfig</code> on Windows or <code className="text-blue-400">ifconfig</code> on Mac/Linux
-                  </div>
-
-                  <button
-                    onClick={() => handleTestConnection({ 
-                      name: 'Custom Local', 
-                      url: `ws://${customLocal.ip}:${customLocal.port}` 
-                    })}
-                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded"
-                  >
-                    Test Custom Server
-                  </button>
+              {localServers.length === 0 ? (
+                <div className="bg-zinc-800 rounded-lg p-4 border border-yellow-900 text-center">
+                  <p className="text-gray-500 text-sm">No local servers added</p>
+                  <p className="text-gray-600 text-xs mt-1">Add a server IP to get started</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {localServers.map((server) => (
+                    <div key={server.ip} className="bg-zinc-800 rounded-lg p-3 border border-yellow-900">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="flex items-center cursor-pointer flex-1">
+                          <input
+                            type="checkbox"
+                            checked={server.enabled}
+                            onChange={() => handleToggleLocalServer(server.ip)}
+                            className="w-4 h-4 mr-3"
+                          />
+                          <div className="flex-1">
+                            <div className="text-yellow-400 font-semibold text-sm">
+                              {server.name}
+                            </div>
+                            <div className="text-xs text-gray-400 font-mono">
+                              {server.ip}
+                            </div>
+                          </div>
+                        </label>
+                        <button
+                          onClick={() => handleRemoveLocalServer(server.ip)}
+                          className="text-red-500 hover:text-red-400 text-xl ml-2"
+                          title="Remove server"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                      
+                      {server.enabled && (
+                        <button
+                          onClick={() => handleTestLocalConnection(server)}
+                          disabled={isTestingIP === server.ip}
+                          className="w-full mt-2 px-3 py-1 bg-blue-700 hover:bg-blue-600 text-white text-sm rounded disabled:opacity-50"
+                        >
+                          {isTestingIP === server.ip ? '⏳ Testing...' : '🔌 Test Connection'}
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
+
+              <div className="mt-3 p-3 bg-blue-900 bg-opacity-20 rounded border border-blue-800">
+                <p className="text-blue-400 text-xs">
+                  💡 <strong>Tip:</strong> Run <span className="font-mono bg-black px-1">node server.js</span> on a computer to start a local server. The IP will be displayed in the console.
+                </p>
+              </div>
             </div>
           </div>
 
           <div className="mt-6 flex gap-3">
             <button
               onClick={handleSaveSettings}
-              className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg"
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-green-700 to-green-800 hover:from-green-600 hover:to-green-700 text-white font-serif font-bold rounded-lg border-2 border-green-600"
             >
-              Save Settings
+              💾 Save Settings
             </button>
             <button
               onClick={onClose}
-              className="px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg"
+              className="px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-yellow-400 font-serif font-bold rounded-lg border-2 border-yellow-900"
             >
               Cancel
             </button>

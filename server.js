@@ -42,6 +42,157 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.url === '/' || req.url === '/status') {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salpakan Server</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Courier New', monospace;
+      background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+      color: #fbbf24;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: rgba(0, 0, 0, 0.8);
+      border: 4px solid #ca8a04;
+      border-radius: 12px;
+      padding: 40px;
+      max-width: 600px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(251, 191, 36, 0.3);
+    }
+    h1 {
+      font-size: 36px;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+    .status {
+      color: #10b981;
+      font-size: 18px;
+      margin-bottom: 30px;
+    }
+    .ip-box {
+      background: #000;
+      border: 2px solid #fbbf24;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 30px 0;
+    }
+    .ip-label {
+      font-size: 14px;
+      opacity: 0.7;
+      margin-bottom: 10px;
+    }
+    .ip-address {
+      font-size: 48px;
+      font-weight: bold;
+      color: #fbbf24;
+      letter-spacing: 2px;
+      text-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+    }
+    .qr-placeholder {
+      background: #fff;
+      width: 200px;
+      height: 200px;
+      margin: 20px auto;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: #000;
+    }
+    .info {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid #3b82f6;
+      border-radius: 6px;
+      padding: 15px;
+      margin-top: 20px;
+      font-size: 14px;
+      color: #93c5fd;
+    }
+    .stats {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 30px;
+      gap: 20px;
+    }
+    .stat {
+      flex: 1;
+    }
+    .stat-value {
+      font-size: 32px;
+      font-weight: bold;
+    }
+    .stat-label {
+      font-size: 12px;
+      opacity: 0.7;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎮 SALPAKAN</h1>
+    <div class="status">● SERVER RUNNING</div>
+    
+    <div class="ip-box">
+      <div class="ip-label">SERVER IP ADDRESS</div>
+      <div class="ip-address">${localIP}</div>
+    </div>
+
+    <div class="info">
+      💡 <strong>To connect:</strong><br>
+      1. Make sure your device is on the same WiFi network<br>
+      2. Open Salpakan game on your phone<br>
+      3. Tap "Create Room" → "Local Network Discovery"<br>
+      4. Enter this IP: <strong>${localIP}</strong>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value" id="rooms">0</div>
+        <div class="stat-label">Active Rooms</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="players">0</div>
+        <div class="stat-label">Players Online</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function updateStats() {
+      fetch('/discover')
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('rooms').textContent = data.rooms.length;
+          const totalPlayers = data.rooms.reduce((sum, r) => sum + r.players, 0);
+          document.getElementById('players').textContent = totalPlayers;
+        })
+        .catch(() => {});
+    }
+    setInterval(updateStats, 2000);
+    updateStats();
+  </script>
+</body>
+</html>
+    `);
+    return;
+  }
+
   res.writeHead(404);
   res.end('Not Found');
 });
@@ -70,13 +221,21 @@ const localIP = getLocalIP();
 // WEBSOCKET SERVER
 // ============================================
 
-console.log(`🎮 Salpakan Local Server`);
-console.log(`📍 IP: ${localIP}:${port}`);
-console.log(`🔌 WebSocket: ws://${localIP}:${port}`);
-console.log(`🔍 Discovery: http://${localIP}:${port}/discover`);
+console.log('\n' + '='.repeat(60));
+console.log('🎮  SALPAKAN LOCAL SERVER');
+console.log('='.repeat(60));
+console.log(`\n📍  SERVER IP: ${localIP}\n`);
+console.log('📱  To connect from your phone:');
+console.log(`    1. Connect to the same WiFi network`);
+console.log(`    2. Open Salpakan → Create Room → Local Network`);
+console.log(`    3. Enter IP: ${localIP}\n`);
+console.log(`🌐  Status page: http://${localIP}:${port}`);
+console.log(`🔌  WebSocket: ws://${localIP}:${port}`);
+console.log(`🔍  Discovery: http://${localIP}:${port}/discover`);
+console.log('='.repeat(60) + '\n');
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`✅ Listening on all interfaces`);
+  console.log(`✅ Server ready on port ${port}\n`);
 });
 
 const rooms = new Map();
