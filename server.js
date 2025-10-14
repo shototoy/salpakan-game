@@ -1,6 +1,5 @@
 const WebSocket = require('ws');
 const http = require('http');
-const dgram = require('dgram');
 const os = require('os');
 
 const port = process.env.PORT || 8080;
@@ -23,15 +22,23 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url === '/discover') {
+    const roomList = Array.from(rooms.entries())
+      .filter(([id, room]) => room.players.filter(p => p !== null).length > 0)
+      .map(([id, room]) => ({
+        id,
+        players: room.players.filter(p => p !== null).length
+      }));
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       type: 'serverFound',
       ip: localIP,
       wsPort: port,
-      serverName: 'Salpakan Server',
+      serverName: 'Salpakan Local Server',
+      rooms: roomList,
       timestamp: Date.now()
     }));
-    console.log(`🔍 HTTP discovery request from ${req.socket.remoteAddress}`);
+    console.log(`🔍 Discovery from ${req.socket.remoteAddress}`);
     return;
   }
 
@@ -42,7 +49,7 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocket.Server({ server });
 
 // ============================================
-// SERVER BROADCAST DISCOVERY
+// NETWORK UTILITIES
 // ============================================
 
 function getLocalIP() {
@@ -58,65 +65,18 @@ function getLocalIP() {
 }
 
 const localIP = getLocalIP();
-const udpServer = dgram.createSocket('udp4');
-
-udpServer.on('message', (msg, rinfo) => {
-  try {
-    const data = JSON.parse(msg.toString());
-    if (data.type === 'discover') {
-      const response = JSON.stringify({ 
-        type: 'serverFound', 
-        ip: localIP,
-        wsPort: port,
-        serverName: data.serverName || 'Salpakan Server'
-      });
-      udpServer.send(response, 0, response.length, rinfo.port, rinfo.address);
-      console.log(`🔍 Discovery request from ${rinfo.address}:${rinfo.port}`);
-    }
-  } catch (error) {
-    console.error('UDP error:', error);
-  }
-});
-
-udpServer.on('error', (err) => {
-  console.error('UDP error:', err);
-});
-
-udpServer.bind(9876, '0.0.0.0', () => {
-  console.log(`📡 Discovery server listening on UDP port 9876 at ${localIP}`);
-});
-
-function broadcastPresence() {
-  const broadcast = dgram.createSocket('udp4');
-  
-  const message = JSON.stringify({
-    type: 'serverAnnounce',
-    ip: localIP,
-    wsPort: port,
-    serverName: 'Salpakan Server'
-  });
-
-  broadcast.bind(() => {
-    broadcast.setBroadcast(true);
-    broadcast.send(message, 0, message.length, 9877, '255.255.255.255', (err) => {
-      if (err) console.error('Broadcast error:', err);
-      broadcast.close();
-    });
-  });
-}
-
-setInterval(broadcastPresence, 3000);
 
 // ============================================
 // WEBSOCKET SERVER
 // ============================================
 
-console.log(`🎮 Salpakan Server running on port ${port}`);
-console.log(`🎮 WebSocket available at ws://${localIP}:${port}`);
-console.log(`📡 Server is announcing on network via UDP broadcast`);
+console.log(`🎮 Salpakan Local Server`);
+console.log(`📍 IP: ${localIP}:${port}`);
+console.log(`🔌 WebSocket: ws://${localIP}:${port}`);
+console.log(`🔍 Discovery: http://${localIP}:${port}/discover`);
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`✅ Server listening on port ${port}`);
+  console.log(`✅ Listening on all interfaces`);
 });
 
 const rooms = new Map();
@@ -357,7 +317,6 @@ function broadcastToRoom(roomId, message, excludePlayerId = null) {
 
 process.on('SIGINT', () => {
   console.log('\n👋 Shutting down...');
-  udpServer.close();
   wss.close(() => {
     console.log('✅ Server closed');
     process.exit(0);
