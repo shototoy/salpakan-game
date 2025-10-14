@@ -27,10 +27,17 @@
     },
 
     getAllServers() {
-      return [
-        { name: 'Local', url: 'ws://localhost:8080' },
+      const isMobile = typeof window.Capacitor !== 'undefined';
+      
+      const servers = [
         { name: 'Render', url: 'wss://salpakan-game.onrender.com' }
       ];
+      
+      if (!isMobile) {
+        servers.unshift({ name: 'Local', url: 'ws://localhost:8080' });
+      }
+      
+      return servers;
     },
 
     async getRoomsFromAllServers() {

@@ -58,7 +58,7 @@ window.GameController = function GameController() {
       };
 
       fetchRooms();
-      const interval = setInterval(fetchRooms, 2000);
+      const interval = setInterval(fetchRooms, 3000);
 
       return () => {
         clearInterval(interval);
@@ -572,10 +572,10 @@ window.GameController = function GameController() {
     }
   };
 
-  const createRoom = () => {
+  const createRoom = (serverUrl = null) => {
     const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     setRoomId(newRoomId);
-    setSelectedServerUrl(null);
+    setSelectedServerUrl(serverUrl);
     setConnectionStatus('connecting');
     setPlayers([null, null]);
     setIsRoomReady(false);
@@ -638,6 +638,7 @@ window.GameController = function GameController() {
       roomId={roomId}
       setRoomId={setRoomId}
       availableRooms={availableRooms}
+      WebSocketManager={WebSocketManager}
     />;
   }
 

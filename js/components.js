@@ -57,6 +57,7 @@ window.PieceIcon = function PieceIcon({ rank, player, RANKS, isHidden }) {
     </svg>
   );
 }
+
 window.HomeScreen = function HomeScreen({ onModeSelect, devMode, setDevMode }) {
   return (
     <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
@@ -91,7 +92,10 @@ window.HomeScreen = function HomeScreen({ onModeSelect, devMode, setDevMode }) {
   );
 }
 
-window.MultiplayerLobby = function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roomId, setRoomId, availableRooms }) {
+window.MultiplayerLobby = function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roomId, setRoomId, availableRooms, WebSocketManager }) {
+  const [showServerSelect, setShowServerSelect] = React.useState(false);
+  const servers = WebSocketManager.getAllServers();
+
   return (
     <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
       <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700">
@@ -102,40 +106,90 @@ window.MultiplayerLobby = function MultiplayerLobby({ onBack, onCreateRoom, onJo
           <h2 className="text-3xl font-serif font-black text-yellow-400 mb-2 tracking-wider">ONLINE BATTLE</h2>
         </div>
 
-        <button onClick={onCreateRoom}
-          className="w-full px-6 py-4 bg-gradient-to-r from-emerald-700 to-emerald-800 text-white text-xl font-serif font-bold rounded border-2 border-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg mb-4">
-          ➕ CREATE ROOM
-        </button>
-
-        {availableRooms && availableRooms.length > 0 && (
-          <div className="mb-4">
-            <p className="text-yellow-600 font-serif text-sm mb-2">Available Rooms:</p>
-            {availableRooms.map(room => (
-              <button key={`${room.serverUrl}-${room.id}`} onClick={() => onJoinRoom(room.id, room.serverUrl)}
-                className="w-full px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-yellow-400 rounded border border-yellow-800 font-mono mb-2 text-left">
-                <div className="flex justify-between items-center">
-                  <span>{room.id}</span>
-                  <span className="text-xs text-gray-500">[{room.server}] {room.players}/2</span>
-                </div>
-              </button>
-            ))}
+        {showServerSelect ? (
+          <div>
+            <button onClick={() => setShowServerSelect(false)} className="mb-4 text-yellow-600 hover:text-yellow-400 font-serif text-sm">
+              ← Back to Lobby
+            </button>
+            <h3 className="text-xl font-serif font-bold text-yellow-400 mb-4 text-center">Select Server</h3>
+            <div className="flex flex-col gap-3">
+              {servers.map(server => (
+                <button 
+                  key={server.url}
+                  onClick={() => {
+                    onCreateRoom(server.url);
+                    setShowServerSelect(false);
+                  }}
+                  className={`w-full px-6 py-4 text-white text-lg font-serif font-bold rounded border-2 shadow-lg hover:opacity-90 transition-all ${
+                    server.name === 'Local' 
+                      ? 'bg-gradient-to-r from-blue-700 to-blue-800 border-blue-600'
+                      : 'bg-gradient-to-r from-purple-700 to-purple-800 border-purple-600'
+                  }`}>
+                  <div className="flex items-center justify-between">
+                    <span>{server.name === 'Local' ? '🏠' : '☁️'} {server.name}</span>
+                    <span className="text-xs opacity-75">{server.name === 'Local' ? 'LAN' : 'Cloud'}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
-        )}
+        ) : (
+          <>
+            <button onClick={() => setShowServerSelect(true)}
+              className="w-full px-6 py-4 bg-gradient-to-r from-emerald-700 to-emerald-800 text-white text-xl font-serif font-bold rounded border-2 border-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg mb-4">
+              ➕ CREATE ROOM
+            </button>
 
-        <input
-          type="text"
-          placeholder="Enter Room ID"
-          value={roomId}
-          onChange={(e) => setRoomId(e.target.value.toUpperCase())}
-          className="w-full px-4 py-3 bg-black text-yellow-400 border-2 border-yellow-800 rounded font-mono text-lg text-center mb-2"
-          maxLength={6}
-        />
-        <button
-          onClick={() => roomId.length === 6 && onJoinRoom(roomId)}
-          disabled={roomId.length !== 6}
-          className="w-full px-6 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-lg font-serif font-bold rounded border-2 border-yellow-600 disabled:opacity-50">
-          🚪 JOIN ROOM
-        </button>
+            {availableRooms && availableRooms.length > 0 && (
+              <div className="mb-4">
+                <p className="text-yellow-600 font-serif text-sm mb-2">Available Rooms ({availableRooms.length}):</p>
+                <div className="max-h-48 overflow-y-auto">
+                  {availableRooms.map(room => (
+                    <button key={`${room.serverUrl}-${room.id}`} onClick={() => onJoinRoom(room.id, room.serverUrl)}
+                      className="w-full px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-yellow-400 rounded border border-yellow-800 font-mono mb-2 text-left">
+                      <div className="flex justify-between items-center">
+                        <span className="text-lg font-bold">{room.id}</span>
+                        <div className="flex flex-col items-end">
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            room.server === 'Local' ? 'bg-blue-900 text-blue-300' : 'bg-purple-900 text-purple-300'
+                          }`}>
+                            {room.server}
+                          </span>
+                          <span className="text-xs text-gray-400 mt-1">{room.players}/2</span>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(!availableRooms || availableRooms.length === 0) && (
+              <div className="mb-4 p-4 bg-zinc-800 rounded border border-yellow-900 text-center">
+                <p className="text-yellow-600 text-sm">No rooms available</p>
+                <p className="text-gray-500 text-xs mt-1">Create one or join by ID</p>
+              </div>
+            )}
+
+            <div className="border-t border-yellow-900 pt-4 mt-4">
+              <p className="text-yellow-600 font-serif text-xs mb-2 text-center">Join by Room ID</p>
+              <input
+                type="text"
+                placeholder="Enter Room ID"
+                value={roomId}
+                onChange={(e) => setRoomId(e.target.value.toUpperCase())}
+                className="w-full px-4 py-3 bg-black text-yellow-400 border-2 border-yellow-800 rounded font-mono text-lg text-center mb-2"
+                maxLength={6}
+              />
+              <button
+                onClick={() => roomId.length === 6 && onJoinRoom(roomId)}
+                disabled={roomId.length !== 6}
+                className="w-full px-6 py-3 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-lg font-serif font-bold rounded border-2 border-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed hover:from-yellow-600 hover:to-yellow-700">
+                🚪 JOIN ROOM
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -243,26 +297,26 @@ window.GameBoard = function GameBoard({
         : modeHandler.shouldShowPiece(cell, turn, playerId, devMode);
 
       cells.push(
-      <div
-  key={c}
-  onClick={() => onCellClick(actualR, actualC)}
-  onMouseDown={() => onCellPress(actualR, actualC)}
-  onMouseUp={onCellRelease}
-  onMouseLeave={onCellRelease}
-  onTouchStart={() => onCellPress(actualR, actualC)}
-  onTouchEnd={onCellRelease}
-  className={`flex items-center justify-center cursor-pointer transition-all ${
-    isSelected ? 'bg-gradient-to-br from-amber-400 to-amber-500 shadow-[inset_0_0_15px_rgba(251,191,36,0.4)]' :
-    isFlagged ? 'bg-gradient-to-br from-violet-400 to-violet-500 shadow-[inset_0_0_15px_rgba(167,139,250,0.4)]' :
-    isOpponentSelected ? 'bg-gradient-to-br from-orange-400 to-orange-500 shadow-[inset_0_0_15px_rgba(251,146,60,0.4)]' :
-    isValidMove ? 'bg-gradient-to-br from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400' :
-    (isLastMoveFrom || isLastMoveTo) ? 'bg-gradient-to-br from-rose-400 to-rose-500 hover:from-rose-300 hover:to-rose-400' :
-    ((actualR + actualC) % 2 === 0) 
-      ? 'bg-gradient-to-br from-slate-100 to-slate-200 hover:from-slate-50 hover:to-slate-100' 
-      : 'bg-gradient-to-br from-slate-300 to-slate-400 hover:from-slate-250 hover:to-slate-350'
-  } border-[0.5px] border-slate-400/30`}
-  style={{ flex: 1, aspectRatio: '1/1' }}
->
+        <div
+          key={c}
+          onClick={() => onCellClick(actualR, actualC)}
+          onMouseDown={() => onCellPress(actualR, actualC)}
+          onMouseUp={onCellRelease}
+          onMouseLeave={onCellRelease}
+          onTouchStart={() => onCellPress(actualR, actualC)}
+          onTouchEnd={onCellRelease}
+          className={`flex items-center justify-center cursor-pointer transition-all ${
+            isSelected ? 'bg-gradient-to-br from-amber-400 to-amber-500 shadow-[inset_0_0_15px_rgba(251,191,36,0.4)]' :
+            isFlagged ? 'bg-gradient-to-br from-violet-400 to-violet-500 shadow-[inset_0_0_15px_rgba(167,139,250,0.4)]' :
+            isOpponentSelected ? 'bg-gradient-to-br from-orange-400 to-orange-500 shadow-[inset_0_0_15px_rgba(251,146,60,0.4)]' :
+            isValidMove ? 'bg-gradient-to-br from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400' :
+            (isLastMoveFrom || isLastMoveTo) ? 'bg-gradient-to-br from-rose-400 to-rose-500 hover:from-rose-300 hover:to-rose-400' :
+            ((actualR + actualC) % 2 === 0) 
+              ? 'bg-gradient-to-br from-slate-100 to-slate-200 hover:from-slate-50 hover:to-slate-100' 
+              : 'bg-gradient-to-br from-slate-300 to-slate-400 hover:from-slate-250 hover:to-slate-350'
+          } border-[0.5px] border-slate-400/30`}
+          style={{ flex: 1, aspectRatio: '1/1' }}
+        >
           {cell ? (canSee ? (
             <div className="w-full h-full p-[2px] md:p-1">
               <PieceIcon rank={cell.r} player={cell.p} RANKS={RANKS} />
@@ -272,9 +326,8 @@ window.GameBoard = function GameBoard({
               <PieceIcon rank={null} player={cell.p} RANKS={RANKS} isHidden={true} />
             </div>
           )) : ''}
-                  </div>
-                );
-                
+        </div>
+      );
     }
     rows.push(
       <div key={r} className="flex" style={{ flex: 1, minHeight: 0 }}>

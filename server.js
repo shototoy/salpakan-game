@@ -51,11 +51,16 @@ wss.on('connection', (ws) => {
 });
 
 function handleGetRooms(ws) {
-  const roomList = Array.from(rooms.entries()).map(([id, room]) => ({
-    id,
-    players: room.players.filter(p => p !== null).length,
-    isFull: room.players.filter(p => p !== null).length >= 2
-  }));
+  const roomList = Array.from(rooms.entries())
+    .filter(([id, room]) => {
+      const activePlayers = room.players.filter(p => p !== null).length;
+      return activePlayers > 0;
+    })
+    .map(([id, room]) => ({
+      id,
+      players: room.players.filter(p => p !== null).length,
+      isFull: room.players.filter(p => p !== null).length >= 2
+    }));
   
   ws.send(JSON.stringify({ type: 'roomList', rooms: roomList }));
 }
