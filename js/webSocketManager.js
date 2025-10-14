@@ -28,13 +28,18 @@
 
     getAllServers() {
       const isMobile = typeof window.Capacitor !== 'undefined';
+      const hostname = window.location.hostname;
       
       const servers = [
-        { name: 'Render', url: 'wss://salpakan-game.onrender.com' }
+        { name: 'Cloud', url: 'wss://salpakan-game.onrender.com', type: 'cloud' }
       ];
       
       if (!isMobile) {
-        servers.unshift({ name: 'Local', url: 'ws://localhost:8080' });
+        if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+          servers.unshift({ name: 'LAN', url: `ws://${hostname}:8080`, type: 'lan' });
+        } else {
+          servers.unshift({ name: 'Local', url: `ws://localhost:8080`, type: 'local' });
+        }
       }
       
       return servers;
@@ -71,7 +76,7 @@
         const timeout = setTimeout(() => {
           ws.close();
           reject(new Error(`Timeout connecting to ${serverName}`));
-        }, 3000);
+        }, 2000);
 
         ws.onopen = () => {
           this.log(`Connected to ${serverName} for room list`);
