@@ -12,5 +12,3 @@
 !release/
 !release/**/*
 !app-debug.apk
-!lib/
-!lib/**/*
