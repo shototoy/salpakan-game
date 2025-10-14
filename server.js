@@ -1,7 +1,3 @@
-// ============================================
-// WEBSOCKET SERVER
-// ============================================
-
 const WebSocket = require('ws');
 const http = require('http');
 
@@ -105,30 +101,44 @@ function handleJoin(ws, data) {
     readyStates: room.readyStates
   }));
   
-  broadcastToRoom(roomId, {
-    type: 'playerJoined',
-    players: room.players,
-    readyStates: room.readyStates
-  }, playerId);
+  const opponentId = playerId === 1 ? 2 : 1;
+  const opponentWs = room.clients.get(opponentId);
+  
+  if (opponentWs && opponentWs.readyState === WebSocket.OPEN) {
+    opponentWs.send(JSON.stringify({
+      type: 'playerJoined',
+      players: room.players,
+      readyStates: room.readyStates
+    }));
+  }
 }
 
 function handleToggleReady(ws, data) {
   const { roomId, playerId, isReady } = data;
   const room = rooms.get(roomId);
   
-  if (!room) return;
+  if (!room) {
+    console.log(`❌ Room ${roomId} not found`);
+    return;
+  }
   
   room.readyStates[playerId] = isReady;
   const allReady = room.readyStates[1] && room.readyStates[2] && room.players.filter(p => p !== null).length === 2;
   
-  console.log(`🎯 Player ${playerId} ready: ${isReady}`);
+  console.log(`🎯 Player ${playerId} ready: ${isReady}, all ready: ${allReady}`);
   
-  broadcastToRoom(roomId, {
+  const message = {
     type: 'playerReady',
     playerId,
     isReady,
     allReady,
     readyStates: room.readyStates
+  };
+  
+  room.clients.forEach((clientWs, clientPlayerId) => {
+    if (clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(JSON.stringify(message));
+    }
   });
 }
 

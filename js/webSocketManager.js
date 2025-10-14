@@ -5,6 +5,18 @@
     ws: null,
     callbacks: {},
     currentServer: null,
+    currentRoomId: null,
+    debugLog: true,
+    
+    log(message, data = null) {
+      if (this.debugLog) {
+        if (data) {
+          console.log(`[WS] ${message}`, data);
+        } else {
+          console.log(`[WS] ${message}`);
+        }
+      }
+    },
     
     getServerUrl() {
       const isMobile = typeof window.Capacitor !== 'undefined';
@@ -25,15 +37,24 @@
       const servers = this.getAllServers();
       const allRooms = [];
 
-      for (const server of servers) {
-        try {
-          const rooms = await this.fetchRoomsFromServer(server.url, server.name);
-          allRooms.push(...rooms);
-        } catch (error) {
-          console.warn(`Could not fetch rooms from ${server.name}:`, error);
-        }
-      }
+      this.log('Fetching rooms from all servers');
 
+      const roomFetchPromises = servers.map(async (server) => {
+        try {
+          this.log(`Trying ${server.name} at ${server.url}`);
+          const rooms = await this.fetchRoomsFromServer(server.url, server.name);
+          this.log(`Got ${rooms.length} rooms from ${server.name}`, rooms);
+          return rooms;
+        } catch (error) {
+          this.log(`Failed to fetch from ${server.name}: ${error.message}`);
+          return [];
+        }
+      });
+
+      const results = await Promise.all(roomFetchPromises);
+      results.forEach(rooms => allRooms.push(...rooms));
+
+      this.log(`Total rooms: ${allRooms.length}`, allRooms);
       return allRooms;
     },
 
@@ -43,9 +64,10 @@
         const timeout = setTimeout(() => {
           ws.close();
           reject(new Error(`Timeout connecting to ${serverName}`));
-        }, 5000);
+        }, 3000);
 
         ws.onopen = () => {
+          this.log(`Connected to ${serverName} for room list`);
           ws.send(JSON.stringify({ type: 'getRooms' }));
         };
 
@@ -65,40 +87,63 @@
 
         ws.onerror = () => {
           clearTimeout(timeout);
+          this.log(`Error fetching from ${serverName}`);
           ws.close();
           resolve([]);
+        };
+
+        ws.onclose = () => {
+          clearTimeout(timeout);
         };
       });
     },
 
-    connect(roomId, playerId, serverUrl = null) {
+    connect(roomId, playerId = null, serverUrl = null) {
+      const url = serverUrl || this.getServerUrl();
+      
+      if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentServer === url && this.currentRoomId === roomId) {
+        this.log('Already connected to same room and server');
+        return this.ws;
+      }
+
       if (this.ws) {
+        this.log('Closing previous connection');
         this.ws.close();
         this.ws = null;
       }
 
-      const url = serverUrl || this.getServerUrl();
-      console.log(`Connecting to: ${url}`);
       this.currentServer = url;
+      this.currentRoomId = roomId;
+      
+      this.log(`Connecting to ${url} for room ${roomId}`);
       
       const ws = new WebSocket(url);
       this.ws = ws;
 
       ws.onopen = () => {
-        console.log('✅ Connected');
+        this.log('Connection opened, joining room');
         ws.send(JSON.stringify({ type: 'join', roomId, playerId }));
       };
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        this.log(`Received: ${data.type}`, data);
         const callback = this.callbacks[data.type];
-        if (callback) callback(data);
+        if (callback) {
+          callback(data);
+        } else {
+          this.log(`No handler for ${data.type}`);
+        }
       };
 
-      ws.onerror = (error) => console.error('WebSocket error:', error);
-      ws.onclose = () => {
-        console.log('Connection closed');
+      ws.onerror = (error) => {
+        this.log('Connection error', error);
+      };
+      
+      ws.onclose = (event) => {
+        this.log('Connection closed', { code: event.code, reason: event.reason });
         this.ws = null;
+        this.currentRoomId = null;
       };
 
       return ws;
@@ -106,10 +151,10 @@
 
     send(data) {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        console.log('Sending message:', data);
+        this.log(`Sending: ${data.type}`, data);
         this.ws.send(JSON.stringify(data));
       } else {
-        console.error('WebSocket not ready! State:', this.ws?.readyState);
+        this.log(`Cannot send, WS state: ${this.ws?.readyState}`, data);
       }
     },
 
@@ -122,13 +167,17 @@
     },
 
     disconnect() {
-      console.log('Disconnecting WebSocket');
+      this.log('Disconnecting');
       if (this.ws) {
+        this.ws.onclose = null;
+        this.ws.onerror = null;
+        this.ws.onmessage = null;
         this.ws.close();
         this.ws = null;
       }
       this.callbacks = {};
       this.currentServer = null;
+      this.currentRoomId = null;
     }
   };
 

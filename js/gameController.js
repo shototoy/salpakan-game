@@ -45,6 +45,7 @@ window.GameController = function GameController() {
   const [victoryData, setVictoryData] = useState(null);
   const [flaggedPiece, setFlaggedPiece] = useState(null);
   const longPressTimer = useRef(null);
+  const [selectedServerUrl, setSelectedServerUrl] = useState(null);
 
   // ============================================
   // WEBSOCKET EFFECTS
@@ -62,6 +63,8 @@ window.GameController = function GameController() {
       return () => {
         clearInterval(interval);
       };
+    } else if (screen !== 'room' && screen !== 'onlineGame') {
+      setAvailableRooms([]);
     }
   }, [screen]);
 
@@ -191,7 +194,6 @@ window.GameController = function GameController() {
       };
 
       const handleGameEnd = (data) => {
-        console.log('Game end received:', data);
         setMsg(data.message);
         setPhase('ended');
         setVictoryData({ 
@@ -199,60 +201,65 @@ window.GameController = function GameController() {
           victoryType: data.victoryType || 'flag_captured' 
         });
         setShowVictory(true);
-        console.log('Victory modal should show now', { showVictory: true, victoryData: data });
       };
 
+      WebSocketManager.on('roomJoined', handleRoomJoined);
+      WebSocketManager.on('playerJoined', handlePlayerJoined);
+      WebSocketManager.on('playerReady', handlePlayerReady);
+      WebSocketManager.on('gameStart', handleGameStart);
+      WebSocketManager.on('opponentDeploymentUpdate', handleOpponentDeploymentUpdate);
+      WebSocketManager.on('opponentSetupComplete', handleOpponentSetupComplete);
+      WebSocketManager.on('bothPlayersReady', handleBothPlayersReady);
+      WebSocketManager.on('move', handleMove);
+      WebSocketManager.on('gameEnd', handleGameEnd);
+
       if (screen === 'room') {
-        WebSocketManager.disconnect();
+        const needsConnection = !WebSocketManager.ws || 
+                               WebSocketManager.ws.readyState !== WebSocket.OPEN ||
+                               WebSocketManager.currentRoomId !== roomId;
         
-        WebSocketManager.on('roomJoined', handleRoomJoined);
-        WebSocketManager.on('playerJoined', handlePlayerJoined);
-        WebSocketManager.on('playerReady', handlePlayerReady);
-        WebSocketManager.on('gameStart', handleGameStart);
-        WebSocketManager.on('opponentDeploymentUpdate', handleOpponentDeploymentUpdate);
-        WebSocketManager.on('opponentSetupComplete', handleOpponentSetupComplete);
-        WebSocketManager.on('bothPlayersReady', handleBothPlayersReady);
-        WebSocketManager.on('move', handleMove);
-        WebSocketManager.on('gameEnd', handleGameEnd);
-        
-        WebSocketManager.connect(roomId, null);
-      } else if (screen === 'onlineGame') {
-        WebSocketManager.on('gameStart', handleGameStart);
-        WebSocketManager.on('opponentDeploymentUpdate', handleOpponentDeploymentUpdate);
-        WebSocketManager.on('opponentSetupComplete', handleOpponentSetupComplete);
-        WebSocketManager.on('bothPlayersReady', handleBothPlayersReady);
-        WebSocketManager.on('move', handleMove);
-        WebSocketManager.on('gameEnd', handleGameEnd);
+        if (needsConnection) {
+          WebSocketManager.connect(roomId, null, selectedServerUrl);
+        }
       }
 
       return () => {
         if (screen !== 'room' && screen !== 'onlineGame') {
+          WebSocketManager.off('roomJoined');
+          WebSocketManager.off('playerJoined');
+          WebSocketManager.off('playerReady');
+          WebSocketManager.off('gameStart');
+          WebSocketManager.off('opponentDeploymentUpdate');
+          WebSocketManager.off('opponentSetupComplete');
+          WebSocketManager.off('bothPlayersReady');
+          WebSocketManager.off('move');
+          WebSocketManager.off('gameEnd');
           WebSocketManager.disconnect();
         }
       };
     }
-  }, [screen, roomId]);
+  }, [screen, roomId, selectedServerUrl]);
 
   // ============================================
   // GAME HANDLERS
   // ============================================
 
   const handleCellPress = (r, c) => {
-  if (phase !== 'playing') return;
-  const cell = board[r][c];
-  if (!cell || cell.p === turn) return;
-  
-  longPressTimer.current = setTimeout(() => {
-    setFlaggedPiece([r, c]);
-  }, 500);
-};
+    if (phase !== 'playing') return;
+    const cell = board[r][c];
+    if (!cell || cell.p === turn) return;
+    
+    longPressTimer.current = setTimeout(() => {
+      setFlaggedPiece([r, c]);
+    }, 500);
+  };
 
-const handleCellRelease = () => {
-  if (longPressTimer.current) {
-    clearTimeout(longPressTimer.current);
-    longPressTimer.current = null;
-  }
-};
+  const handleCellRelease = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
 
   const resetGame = useCallback(() => {
     setScreen('home');
@@ -468,7 +475,6 @@ const handleCellRelease = () => {
               setPhase('ended');
               setVictoryData({ winner: turn, victoryType: 'flag_captured' });
               setShowVictory(true);
-              console.log('Victory triggered - flag captured by player', turn);
               if (multiplayerMode === 'online') {
                 WebSocketManager.send({
                   type: 'gameEnd',
@@ -484,32 +490,6 @@ const handleCellRelease = () => {
             nb[sr][sc] = null;
             newDefeated[attacker.p] = [...newDefeated[attacker.p], attacker.r];
             newBattleResult = { attacker: attacker.r, defender: defender.r, result: 'lose', player: turn };
-            
-            if (attacker.r === 'FLAG') {
-              checkFlagVictory: (board, player, flagRow, flagCol) => {
-              const enemyPlayer = player === 1 ? 2 : 1;
-              const targetRow = player === 1 ? 0 : 7;
-              
-              if (flagRow !== targetRow) return false;
-              
-              const checkPositions = [
-                [flagRow, flagCol - 1],
-                [flagRow, flagCol + 1],
-                [flagRow + (player === 1 ? 1 : -1), flagCol]
-              ];
-              
-              for (const [r, c] of checkPositions) {
-                if (r >= 0 && r < 8 && c >= 0 && c < 9) {
-                  const cell = board[r][c];
-                  if (cell && cell.p === enemyPlayer) {
-                    return false;
-                  }
-                }
-              }
-              
-              return true;
-            }
-            }
           } else {
             nb[r][c] = null;
             nb[sr][sc] = null;
@@ -527,32 +507,6 @@ const handleCellRelease = () => {
         setBoard(nb);
         setSel(null);
         setMoves([]);
-        
-        if (attacker.r === 'FLAG') {
-          checkFlagVictory: (board, player, flagRow, flagCol) => {
-          const enemyPlayer = player === 1 ? 2 : 1;
-          const targetRow = player === 1 ? 0 : 7;
-          
-          if (flagRow !== targetRow) return false;
-          
-          const checkPositions = [
-            [flagRow, flagCol - 1],
-            [flagRow, flagCol + 1],
-            [flagRow + (player === 1 ? 1 : -1), flagCol]
-          ];
-          
-          for (const [r, c] of checkPositions) {
-            if (r >= 0 && r < 8 && c >= 0 && c < 9) {
-              const cell = board[r][c];
-              if (cell && cell.p === enemyPlayer) {
-                return false;
-              }
-            }
-          }
-          
-          return true;
-        }
-        }
         
         const moveData = { from: [sr, sc], to: [r, c], turn };
         setLastMove(moveData);
@@ -621,6 +575,7 @@ const handleCellRelease = () => {
   const createRoom = () => {
     const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     setRoomId(newRoomId);
+    setSelectedServerUrl(null);
     setConnectionStatus('connecting');
     setPlayers([null, null]);
     setIsRoomReady(false);
@@ -631,16 +586,13 @@ const handleCellRelease = () => {
 
   const joinRoom = (id, serverUrl = null) => {
     setRoomId(id);
+    setSelectedServerUrl(serverUrl);
     setConnectionStatus('connecting');
     setPlayers([null, null]);
     setIsRoomReady(false);
     setMyReadyState(false);
     setOpponentReadyState(false);
     setScreen('room');
-    
-    if (serverUrl) {
-      WebSocketManager.connect(id, null, serverUrl);
-    }
   };
 
   const toggleReady = () => {
@@ -666,10 +618,6 @@ const handleCellRelease = () => {
       roomId
     });
   };
-
-  useEffect(() => {
-    console.log('Victory state changed:', { showVictory, victoryData, phase });
-  }, [showVictory, victoryData, phase]);
 
   // ============================================
   // RENDER
