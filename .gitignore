@@ -9,8 +9,11 @@
 !page.html
 !game.html
 !index.html
-!releases/
-!releases/**/*
+!release/
+!release/**/*
 !app-debug.apk
 !lib/
 !lib/**/*
+!android/app/build/outputs/apk/debug/**/*
+!android/app/build/outputs/apk/debug/
+!android/app/build/outputs/apk/debug/app-debug.apk
