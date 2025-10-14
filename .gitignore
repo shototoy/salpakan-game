@@ -8,3 +8,4 @@
 !src/jsx/
 !src/jsx/components
 !server.js
+!build/
