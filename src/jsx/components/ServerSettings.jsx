@@ -1,3 +1,7 @@
+// ============================================
+// jsx/components/ServerSettings.jsx
+// ============================================
+
 import React, { useState, useEffect } from 'react';
 
 export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
@@ -10,10 +14,6 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
   useEffect(() => {
     loadSettings();
   }, []);
-
-  // ============================================
-  // SETTINGS MANAGEMENT
-  // ============================================
 
   const loadSettings = () => {
     const settings = WebSocketManager.getStoredSettings();
@@ -65,10 +65,6 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
     if (onClose) onClose();
   };
 
-  // ============================================
-  // CLOUD SERVERS
-  // ============================================
-
   const handleToggleServer = (type) => {
     setServers(prev => prev.map(server => 
       server.type === type ? { ...server, enabled: !server.enabled } : server
@@ -86,10 +82,6 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
       setIsTestingIP('');
     }
   };
-
-  // ============================================
-  // LOCAL SERVERS
-  // ============================================
 
   const handleAddLocalServer = async () => {
     if (!newServerIP.trim()) return;
@@ -145,10 +137,6 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
     setIsTestingIP('');
   };
 
-  // ============================================
-  // RENDER
-  // ============================================
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
       <div className="relative bg-zinc-950 rounded-sm w-full max-w-md border-4 border-zinc-800" style={{ height: '600px', maxHeight: '90vh' }}>
@@ -156,10 +144,10 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
         
         <div className="relative z-10 flex flex-col h-full p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-black text-zinc-300 tracking-widest uppercase" style={{ fontFamily: 'Impact, "Arial Black", sans-serif', textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>SERVER CONFIG</h2>
+            <h2 className="text-xl font-black text-zinc-100 tracking-widest uppercase" style={{ fontFamily: 'Impact, "Arial Black", sans-serif', textShadow: '2px 2px 0px rgba(0,0,0,1), 0 0 15px rgba(161,161,170,0.6)' }}>SERVER CONFIG</h2>
             <button 
               onClick={onClose}
-              className="text-zinc-500 hover:text-zinc-300 text-3xl leading-none"
+              className="text-zinc-400 hover:text-zinc-100 text-3xl leading-none"
             >
               ×
             </button>
@@ -168,7 +156,7 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
           <div className="flex-1 overflow-y-auto pr-2 scrollbar-custom min-h-0">
             <div className="space-y-6 pb-2">
               <div>
-                <h3 className="text-sm font-bold text-zinc-400 mb-3 uppercase tracking-widest" style={{ fontFamily: 'Courier New, monospace' }}>CLOUD SERVERS</h3>
+                <h3 className="text-sm font-bold text-zinc-300 mb-3 uppercase tracking-widest" style={{ fontFamily: 'Courier New, monospace' }}>CLOUD SERVERS</h3>
                 <div className="space-y-3">
                   {servers.map((server) => (
                     <div key={server.type} className="bg-zinc-900 rounded-sm p-4 border border-zinc-800">
@@ -181,7 +169,7 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
                             className="w-5 h-5 mr-3"
                           />
                           <div className="flex-1">
-                            <div className="text-zinc-300 font-semibold text-sm uppercase tracking-wide" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+                            <div className="text-zinc-200 font-semibold text-sm uppercase tracking-wide" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
                               {server.name}
                             </div>
                             <div className="text-xs text-zinc-600 font-mono">
@@ -207,11 +195,11 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
               </div>
 
               <div>
-                <h3 className="text-sm font-bold text-zinc-400 mb-3 uppercase tracking-widest" style={{ fontFamily: 'Courier New, monospace' }}>LOCAL SERVERS</h3>
+                <h3 className="text-sm font-bold text-zinc-300 mb-3 uppercase tracking-widest" style={{ fontFamily: 'Courier New, monospace' }}>LOCAL SERVERS</h3>
                 
                 <div className="bg-zinc-900 rounded-sm border border-zinc-800">
                   <div className="p-4 border-b border-zinc-800">
-                    <p className="text-zinc-500 text-xs mb-2 uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>ADD LOCAL SERVER</p>
+                    <p className="text-zinc-400 text-xs mb-2 uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>ADD LOCAL SERVER</p>
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -219,7 +207,7 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
                         onChange={(e) => setNewServerIP(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleAddLocalServer()}
                         placeholder="192.168.1.5"
-                        className="flex-1 px-3 py-2 bg-black text-zinc-300 border-2 border-zinc-800 focus:border-zinc-700 rounded-sm font-mono text-sm placeholder-zinc-700"
+                        className="flex-1 px-3 py-2 bg-black text-zinc-200 border-2 border-zinc-800 focus:border-zinc-700 rounded-sm font-mono text-sm placeholder-zinc-700"
                         disabled={!!isTestingIP}
                       />
                       <button
@@ -238,8 +226,8 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
                   <div className="overflow-y-auto scrollbar-custom" style={{ maxHeight: '200px' }}>
                     {localServers.length === 0 ? (
                       <div className="p-4 text-center">
-                        <p className="text-zinc-600 text-xs uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>NO LOCAL SERVERS</p>
-                        <p className="text-zinc-700 text-xs mt-1">Add a server IP to get started</p>
+                        <p className="text-zinc-500 text-xs uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>NO LOCAL SERVERS</p>
+                        <p className="text-zinc-600 text-xs mt-1">Add a server IP to get started</p>
                       </div>
                     ) : (
                       <div className="p-2">
@@ -254,7 +242,7 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
                                   className="w-4 h-4 mr-3"
                                 />
                                 <div className="flex-1">
-                                  <div className="text-zinc-300 font-semibold text-sm uppercase tracking-wide" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+                                  <div className="text-zinc-200 font-semibold text-sm uppercase tracking-wide" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
                                     {server.name}
                                   </div>
                                   <div className="text-xs text-zinc-600 font-mono">
@@ -289,7 +277,7 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
                 </div>
 
                 <div className="mt-3 p-3 bg-zinc-900 bg-opacity-50 rounded-sm border border-zinc-800">
-                  <p className="text-zinc-600 text-xs" style={{ fontFamily: 'Courier New, monospace' }}>
+                  <p className="text-zinc-500 text-xs" style={{ fontFamily: 'Courier New, monospace' }}>
                     💡 Run <span className="font-mono bg-black px-1 text-zinc-400">node server.js</span> to start local server
                   </p>
                 </div>
@@ -300,14 +288,14 @@ export default function ServerSettings({ WebSocketManager, onClose, onSave }) {
           <div className="mt-6 flex gap-3 pt-4 border-t border-zinc-800">
             <button
               onClick={handleSaveSettings}
-              className="flex-1 px-4 py-3 bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black text-zinc-300 hover:text-zinc-200 font-bold rounded-sm border-2 border-zinc-700 hover:border-red-900 uppercase tracking-wider transition-all shadow-[0_4px_12px_rgba(0,0,0,0.8)] hover:shadow-[0_4px_20px_rgba(139,0,0,0.6)]"
+              className="flex-1 px-4 py-3 bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black text-zinc-100 hover:text-white font-bold rounded-sm border-2 border-zinc-600 hover:border-red-700 uppercase tracking-wider transition-all shadow-[0_4px_12px_rgba(0,0,0,0.8),0_0_15px_rgba(161,161,170,0.3),inset_0_1px_0_rgba(161,161,170,0.2)] hover:shadow-[0_4px_20px_rgba(220,38,38,0.8),0_0_30px_rgba(220,38,38,0.5),inset_0_1px_0_rgba(239,68,68,0.3)]"
               style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}
             >
               💾 SAVE
             </button>
             <button
               onClick={onClose}
-              className="px-4 py-3 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-300 font-bold rounded-sm border-2 border-zinc-800 uppercase tracking-wider transition-all"
+              className="px-4 py-3 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 font-bold rounded-sm border-2 border-zinc-800 uppercase tracking-wider transition-all"
               style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}
             >
               CANCEL

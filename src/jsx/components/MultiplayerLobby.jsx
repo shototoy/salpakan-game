@@ -1,3 +1,7 @@
+// ============================================
+// jsx/components/MultiplayerLobby.jsx
+// ============================================
+
 import React, { useState, useEffect } from 'react';
 import ServerSettings from './ServerSettings';
 
@@ -87,11 +91,11 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
 
   const getServerTypeInfo = (server) => {
     if (server.type === 'cloud') {
-      return { emoji: '☁️', label: 'CLOUD', color: 'from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black border-zinc-700 hover:border-red-900' };
+      return { emoji: '☁️', label: 'CLOUD', color: 'from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black border-zinc-600 hover:border-red-700' };
     } else if (server.type === 'manual') {
-      return { emoji: '🏠', label: 'LAN', color: 'from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black border-zinc-700 hover:border-red-900' };
+      return { emoji: '🏠', label: 'LAN', color: 'from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black border-zinc-600 hover:border-red-700' };
     } else {
-      return { emoji: '🔧', label: 'CUSTOM', color: 'from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black border-zinc-700 hover:border-red-900' };
+      return { emoji: '🔧', label: 'CUSTOM', color: 'from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black border-zinc-600 hover:border-red-700' };
     }
   };
 
@@ -106,12 +110,12 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
         
         <div className="relative z-10 flex flex-col h-full">
           <div className="flex justify-between items-center mb-4">
-            <button onClick={onBack} className="text-zinc-500 hover:text-zinc-300 text-xs uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>
+            <button onClick={onBack} className="text-zinc-400 hover:text-zinc-100 text-xs uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>
               ← RETURN
             </button>
             <button 
               onClick={() => setShowSettings(true)}
-              className="text-zinc-500 hover:text-zinc-300 text-xs uppercase tracking-wider"
+              className="text-zinc-400 hover:text-zinc-100 text-xs uppercase tracking-wider"
               style={{ fontFamily: 'Courier New, monospace' }}
             >
               ⚙ CONFIG
@@ -119,18 +123,18 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
           </div>
 
           <div className="text-center mb-4">
-            <div className="text-4xl mb-2 filter drop-shadow-[0_0_10px_rgba(139,0,0,0.5)]">🌐</div>
-            <h2 className="text-2xl font-black text-zinc-300 mb-1 tracking-widest uppercase" style={{ fontFamily: 'Impact, "Arial Black", sans-serif', textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>
+            <div className="text-4xl mb-2 filter drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]">🌐</div>
+            <h2 className="text-2xl font-black text-zinc-100 mb-1 tracking-widest uppercase" style={{ fontFamily: 'Impact, "Arial Black", sans-serif', textShadow: '2px 2px 0px rgba(0,0,0,1), 0 0 20px rgba(220,38,38,0.5), 0 0 3px rgba(161,161,170,0.8)' }}>
               NETWORK BATTLE
             </h2>
           </div>
 
           {showServerSelect ? (
             <div className="flex-1 flex flex-col min-h-0">
-              <button onClick={() => setShowServerSelect(false)} className="mb-4 text-zinc-500 hover:text-zinc-300 text-xs uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>
+              <button onClick={() => setShowServerSelect(false)} className="mb-4 text-zinc-400 hover:text-zinc-100 text-xs uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>
                 ← RETURN
               </button>
-              <h3 className="text-lg font-black text-zinc-400 mb-4 text-center tracking-widest uppercase" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>SELECT SERVER</h3>
+              <h3 className="text-lg font-black text-zinc-200 mb-4 text-center tracking-widest uppercase" style={{ fontFamily: 'Impact, "Arial Black", sans-serif', textShadow: '1px 1px 0px rgba(0,0,0,1), 0 0 10px rgba(161,161,170,0.6)' }}>SELECT SERVER</h3>
               <div className="flex-1 overflow-y-auto pr-2 scrollbar-custom">
                 <div className="flex flex-col gap-3 pb-2">
                   {enabledServers.map(server => {
@@ -139,7 +143,7 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                       <button 
                         key={server.url}
                         onClick={() => handleCreateRoom(server.url)}
-                        className={`w-full px-6 py-4 bg-gradient-to-b text-zinc-300 hover:text-zinc-200 text-base font-bold rounded-sm border-2 shadow-[0_4px_12px_rgba(0,0,0,0.8)] hover:shadow-[0_4px_20px_rgba(139,0,0,0.6)] transform hover:scale-105 transition-all uppercase tracking-wider ${info.color}`}
+                        className={`w-full px-6 py-4 bg-gradient-to-b text-zinc-100 hover:text-white text-base font-bold rounded-sm border-2 shadow-[0_4px_12px_rgba(0,0,0,0.8),0_0_20px_rgba(161,161,170,0.3)] hover:shadow-[0_4px_20px_rgba(220,38,38,0.8),0_0_30px_rgba(220,38,38,0.4)] transform scale-95 hover:scale-100 transition-all uppercase tracking-wider ${info.color}`}
                         style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
                         <div className="flex items-center justify-between">
                           <span>{info.emoji} {server.name}</span>
@@ -157,18 +161,18 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
           ) : (
             <>
               <button onClick={handleShowCreateRoom}
-                className="w-full px-5 py-3 bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black text-zinc-300 hover:text-zinc-200 text-lg font-bold rounded-sm border-2 border-zinc-700 hover:border-red-900 shadow-[0_4px_12px_rgba(0,0,0,0.8)] hover:shadow-[0_4px_20px_rgba(139,0,0,0.6)] mb-3 uppercase tracking-wider transition-all transform hover:scale-105"
+                className="w-full px-5 py-3 bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black text-zinc-100 hover:text-white text-lg font-bold rounded-sm border-2 border-zinc-600 hover:border-red-700 shadow-[0_4px_12px_rgba(0,0,0,0.8),0_0_15px_rgba(161,161,170,0.3),inset_0_1px_0_rgba(161,161,170,0.2)] hover:shadow-[0_4px_20px_rgba(220,38,38,0.8),0_0_30px_rgba(220,38,38,0.5),inset_0_1px_0_rgba(239,68,68,0.3)] mb-3 uppercase tracking-wider transition-all transform hover:scale-105"
                 style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
                 ➕ CREATE ROOM
               </button>
 
               <div className="flex-1 flex flex-col min-h-0 mb-3">
                 <div className="flex justify-between items-center mb-2">
-                  <p className="text-zinc-500 text-xs uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>AVAILABLE ROOMS ({availableRooms.length})</p>
+                  <p className="text-zinc-400 text-xs uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>AVAILABLE ROOMS ({availableRooms.length})</p>
                   <button 
                     onClick={handleRefresh}
                     disabled={isLoading}
-                    className={`text-zinc-500 hover:text-zinc-300 text-xs ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`text-zinc-400 hover:text-zinc-100 text-xs ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     🔄
                   </button>
@@ -184,7 +188,7 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                           <button 
                             key={`${room.serverUrl}-${room.id}-${idx}`} 
                             onClick={() => onJoinRoom(room.id, room.serverUrl)}
-                            className="w-full px-4 py-3 bg-zinc-900 hover:bg-zinc-800 scale-[0.92] hover:scale-100 text-zinc-300 rounded-sm border border-zinc-800 hover:border-zinc-700 font-mono mb-1.5 text-left transition-all overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
+                            className="w-full px-4 py-3 bg-zinc-900 hover:bg-zinc-800 scale-95 hover:scale-100 text-zinc-200 hover:text-zinc-100 rounded-sm border border-zinc-800 hover:border-zinc-700 font-mono mb-1.5 text-left transition-all overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
                             <div className="flex justify-between items-center">
                               <span className="text-lg font-bold truncate">{room.id}</span>
                               <div className="flex flex-col items-end flex-shrink-0 ml-2">
@@ -201,8 +205,8 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                   ) : (
                     <div className="h-full flex items-center justify-center px-1">
                       <div className="w-full p-4 bg-zinc-900 rounded-sm border border-zinc-800 text-center">
-                        <p className="text-zinc-500 text-sm uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>NO ROOMS AVAILABLE</p>
-                        <p className="text-zinc-700 text-xs mt-1">Create one or join by ID</p>
+                        <p className="text-zinc-400 text-sm uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>NO ROOMS AVAILABLE</p>
+                        <p className="text-zinc-600 text-xs mt-1">Create one or join by ID</p>
                       </div>
                     </div>
                   )}
@@ -210,13 +214,13 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
               </div>
 
               <div className="border-t border-zinc-800 pt-3">
-                <p className="text-zinc-500 text-xs mb-2 text-center uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>JOIN BY ROOM ID</p>
+                <p className="text-zinc-400 text-xs mb-2 text-center uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>JOIN BY ROOM ID</p>
                 <input
                   type="text"
                   placeholder="ENTER ROOM ID"
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value.toUpperCase())}
-                  className="w-full px-4 py-2 bg-black text-zinc-300 border-2 border-zinc-800 focus:border-zinc-700 rounded-sm font-mono text-base text-center mb-2 placeholder-zinc-700"
+                  className="w-full px-4 py-2 bg-black text-zinc-200 border-2 border-zinc-800 focus:border-zinc-700 rounded-sm font-mono text-base text-center mb-2 placeholder-zinc-700"
                   maxLength={6}
                 />
                 <button
@@ -242,7 +246,7 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                     }
                   }}
                   disabled={roomId.length !== 6}
-                  className="w-full px-5 py-2.5 bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black text-zinc-300 hover:text-zinc-200 text-lg font-bold rounded-sm border-2 border-zinc-700 hover:border-red-900 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_12px_rgba(0,0,0,0.8)] hover:shadow-[0_4px_20px_rgba(139,0,0,0.6)] uppercase tracking-wider transition-all"
+                  className="w-full px-5 py-2.5 bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black text-zinc-100 hover:text-white text-lg font-bold rounded-sm border-2 border-zinc-600 hover:border-red-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_12px_rgba(0,0,0,0.8),0_0_15px_rgba(161,161,170,0.3),inset_0_1px_0_rgba(161,161,170,0.2)] hover:shadow-[0_4px_20px_rgba(220,38,38,0.8),0_0_30px_rgba(220,38,38,0.5),inset_0_1px_0_rgba(239,68,68,0.3)] uppercase tracking-wider transition-all"
                   style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
                   🚪 JOIN ROOM
                 </button>
