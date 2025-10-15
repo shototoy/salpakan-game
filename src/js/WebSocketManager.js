@@ -74,7 +74,6 @@ const WebSocketManager = {
       const localServers = settings.localServers
         .filter(s => s.enabled)
         .map(s => {
-          // For local servers, always use ws:// (not wss://)
           return {
             name: s.name,
             url: `ws://${s.ip}:8080`,
@@ -130,7 +129,6 @@ const WebSocketManager = {
 
       if (response.ok) {
         const data = await response.json();
-        // Local servers always use ws://
         const wsUrl = `ws://${ip}:${data.wsPort || 8080}`;
         
         const server = {
@@ -158,12 +156,12 @@ const WebSocketManager = {
   // ============================================
   
   getServerUrl() {
-    // FIXED: Always return the cloud server URL with wss://
-    // This works in both browser and APK
+    // Always use cloud server as default
     return 'wss://salpakan-game.onrender.com';
   },
 
   async getRoomsFromAllServers() {
+    // DON'T run discovery here - it should only happen when user clicks a button!
     const servers = this.getEnabledServers();
     const allRooms = [];
 
@@ -190,67 +188,45 @@ const WebSocketManager = {
 
   fetchRoomsFromServer(serverUrl, serverName) {
     return new Promise((resolve, reject) => {
-      // FIXED: Don't try fallback from wss to ws for cloud servers
-      const isCloudServer = serverUrl.includes('render.com') || serverUrl.includes('herokuapp.com');
+      this.log(`Fetching rooms from ${serverUrl}`);
+      const ws = new WebSocket(serverUrl);
       
-      const attemptFetch = (url, isRetry = false) => {
-        this.log(`Attempting fetch from ${url} (retry: ${isRetry})`);
-        const ws = new WebSocket(url);
-        const timeoutId = setTimeout(() => {
-          this.log(`Timeout on ${url}`);
-          ws.close();
-          
-          // Only try fallback for non-cloud servers (local servers)
-          if (!isRetry && !isCloudServer && url.startsWith('wss://')) {
-            const fallbackUrl = url.replace('wss://', 'ws://');
-            this.log(`Trying WS fallback: ${fallbackUrl}`);
-            attemptFetch(fallbackUrl, true);
-          } else {
-            reject(new Error(`Timeout connecting to ${serverName}`));
-          }
-        }, 5000); // Increased timeout for cloud servers
+      const timeoutId = setTimeout(() => {
+        this.log(`Timeout fetching rooms from ${serverUrl}`);
+        ws.close();
+        reject(new Error(`Timeout connecting to ${serverName}`));
+      }, 5000);
 
-        ws.onopen = () => {
-          clearTimeout(timeoutId);
-          this.log(`Connected to ${serverName} for room list`);
-          ws.send(JSON.stringify({ type: 'getRooms' }));
-        };
-
-        ws.onmessage = (event) => {
-          clearTimeout(timeoutId);
-          const data = JSON.parse(event.data);
-          if (data.type === 'roomList') {
-            const roomsWithServer = data.rooms.map(room => ({
-              ...room,
-              server: serverName,
-              serverUrl: url
-            }));
-            ws.close();
-            resolve(roomsWithServer);
-          }
-        };
-
-        ws.onerror = (error) => {
-          clearTimeout(timeoutId);
-          this.log(`Error on ${url}`, error);
-          ws.close();
-          
-          // Only try fallback for non-cloud servers
-          if (!isRetry && !isCloudServer && url.startsWith('wss://')) {
-            const fallbackUrl = url.replace('wss://', 'ws://');
-            this.log(`Error, trying WS fallback: ${fallbackUrl}`);
-            attemptFetch(fallbackUrl, true);
-          } else {
-            resolve([]);
-          }
-        };
-
-        ws.onclose = () => {
-          clearTimeout(timeoutId);
-        };
+      ws.onopen = () => {
+        clearTimeout(timeoutId);
+        this.log(`Connected to ${serverName} for room list`);
+        ws.send(JSON.stringify({ type: 'getRooms' }));
       };
 
-      attemptFetch(serverUrl);
+      ws.onmessage = (event) => {
+        clearTimeout(timeoutId);
+        const data = JSON.parse(event.data);
+        if (data.type === 'roomList') {
+          const roomsWithServer = data.rooms.map(room => ({
+            ...room,
+            server: serverName,
+            serverUrl: serverUrl
+          }));
+          ws.close();
+          resolve(roomsWithServer);
+        }
+      };
+
+      ws.onerror = (error) => {
+        clearTimeout(timeoutId);
+        this.log(`Error fetching rooms from ${serverUrl}`, error);
+        ws.close();
+        resolve([]); // Return empty array instead of rejecting
+      };
+
+      ws.onclose = () => {
+        clearTimeout(timeoutId);
+      };
     });
   },
 
@@ -276,34 +252,16 @@ const WebSocketManager = {
     this.currentRoomId = roomId;
     
     this.log(`Connecting to ${url} for room ${roomId}`);
-    this.attemptConnection(url, roomId, playerId, false);
-    
-    return this.ws;
-  },
-
-  attemptConnection(url, roomId, playerId, isRetry) {
-    this.log(`Attempt connection to ${url} (retry: ${isRetry})`);
-    
-    // FIXED: Don't try fallback from wss to ws for cloud servers
-    const isCloudServer = url.includes('render.com') || url.includes('herokuapp.com');
     
     const ws = new WebSocket(url);
     this.ws = ws;
 
     const timeout = setTimeout(() => {
       if (ws.readyState !== WebSocket.OPEN) {
-        this.log(`Connection timeout on ${url}`);
+        this.log(`Connection timeout`);
         ws.close();
-        
-        // Only try fallback for non-cloud servers
-        if (!isRetry && !isCloudServer && url.startsWith('wss://')) {
-          const fallbackUrl = url.replace('wss://', 'ws://');
-          this.log(`Timeout, trying WS fallback: ${fallbackUrl}`);
-          this.currentServer = fallbackUrl;
-          this.attemptConnection(fallbackUrl, roomId, playerId, true);
-        }
       }
-    }, 8000); // Increased timeout for cloud servers
+    }, 10000);
 
     ws.onopen = () => {
       clearTimeout(timeout);
@@ -325,14 +283,6 @@ const WebSocketManager = {
     ws.onerror = (error) => {
       clearTimeout(timeout);
       this.log('Connection error', error);
-      
-      // Only try fallback for non-cloud servers
-      if (!isRetry && !isCloudServer && url.startsWith('wss://')) {
-        const fallbackUrl = url.replace('wss://', 'ws://');
-        this.log(`Error, trying WS fallback: ${fallbackUrl}`);
-        this.currentServer = fallbackUrl;
-        this.attemptConnection(fallbackUrl, roomId, playerId, true);
-      }
     };
     
     ws.onclose = (event) => {
@@ -341,6 +291,8 @@ const WebSocketManager = {
       this.ws = null;
       this.currentRoomId = null;
     };
+    
+    return ws;
   },
 
   send(data) {
