@@ -87,11 +87,11 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
 
   const getServerTypeInfo = (server) => {
     if (server.type === 'cloud') {
-      return { emoji: '☁️', label: 'Cloud', color: 'from-purple-700 to-purple-800 border-purple-600' };
+      return { emoji: '☁️', label: 'CLOUD', color: 'from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black border-zinc-700 hover:border-red-900' };
     } else if (server.type === 'manual') {
-      return { emoji: '🏠', label: 'LAN', color: 'from-blue-700 to-blue-800 border-blue-600' };
+      return { emoji: '🏠', label: 'LAN', color: 'from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black border-zinc-700 hover:border-red-900' };
     } else {
-      return { emoji: '🔧', label: 'Custom', color: 'from-green-700 to-green-800 border-green-600' };
+      return { emoji: '🔧', label: 'CUSTOM', color: 'from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black border-zinc-700 hover:border-red-900' };
     }
   };
 
@@ -100,32 +100,37 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
   // ============================================
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
-      <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl w-full max-w-md border-4 border-yellow-700" style={{ height: '600px', maxHeight: '90vh' }}>
-        <div className="flex flex-col h-full">
+    <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-black via-zinc-950 to-zinc-900 p-4">
+      <div className="relative bg-zinc-950 p-10 rounded-sm shadow-2xl w-full max-w-md border-4 border-zinc-800" style={{ height: '600px', maxHeight: '90vh' }}>
+        <div className="absolute inset-0 bg-gradient-to-br from-red-950/10 via-transparent to-black/30 pointer-events-none rounded-sm"></div>
+        
+        <div className="relative z-10 flex flex-col h-full">
           <div className="flex justify-between items-center mb-4">
-            <button onClick={onBack} className="text-yellow-600 hover:text-yellow-400 font-serif text-sm">
-              ← Back
+            <button onClick={onBack} className="text-zinc-500 hover:text-zinc-300 text-xs uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>
+              ← RETURN
             </button>
             <button 
               onClick={() => setShowSettings(true)}
-              className="text-yellow-600 hover:text-yellow-400 font-serif text-sm"
+              className="text-zinc-500 hover:text-zinc-300 text-xs uppercase tracking-wider"
+              style={{ fontFamily: 'Courier New, monospace' }}
             >
-              ⚙️ Settings
+              ⚙ CONFIG
             </button>
           </div>
 
           <div className="text-center mb-4">
-            <div className="text-4xl mb-2">🌐</div>
-            <h2 className="text-2xl font-serif font-black text-yellow-400 mb-1 tracking-wider">ONLINE BATTLE</h2>
+            <div className="text-4xl mb-2 filter drop-shadow-[0_0_10px_rgba(139,0,0,0.5)]">🌐</div>
+            <h2 className="text-2xl font-black text-zinc-300 mb-1 tracking-widest uppercase" style={{ fontFamily: 'Impact, "Arial Black", sans-serif', textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>
+              NETWORK BATTLE
+            </h2>
           </div>
 
           {showServerSelect ? (
             <div className="flex-1 flex flex-col min-h-0">
-              <button onClick={() => setShowServerSelect(false)} className="mb-4 text-yellow-600 hover:text-yellow-400 font-serif text-sm">
-                ← Back to Lobby
+              <button onClick={() => setShowServerSelect(false)} className="mb-4 text-zinc-500 hover:text-zinc-300 text-xs uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>
+                ← RETURN
               </button>
-              <h3 className="text-xl font-serif font-bold text-yellow-400 mb-4 text-center">Select Server</h3>
+              <h3 className="text-lg font-black text-zinc-400 mb-4 text-center tracking-widest uppercase" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>SELECT SERVER</h3>
               <div className="flex-1 overflow-y-auto pr-2 scrollbar-custom">
                 <div className="flex flex-col gap-3 pb-2">
                   {enabledServers.map(server => {
@@ -134,13 +139,14 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                       <button 
                         key={server.url}
                         onClick={() => handleCreateRoom(server.url)}
-                        className={`w-full px-6 py-4 text-white text-lg font-serif font-bold rounded border-2 shadow-lg hover:opacity-90 transition-all bg-gradient-to-r ${info.color}`}>
+                        className={`w-full px-6 py-4 bg-gradient-to-b text-zinc-300 hover:text-zinc-200 text-base font-bold rounded-sm border-2 shadow-[0_4px_12px_rgba(0,0,0,0.8)] hover:shadow-[0_4px_20px_rgba(139,0,0,0.6)] transform hover:scale-105 transition-all uppercase tracking-wider ${info.color}`}
+                        style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
                         <div className="flex items-center justify-between">
                           <span>{info.emoji} {server.name}</span>
                           <span className="text-xs opacity-75">{info.label}</span>
                         </div>
                         {server.ip && (
-                          <div className="text-xs opacity-75 mt-1 font-mono">{server.ip}</div>
+                          <div className="text-xs opacity-75 mt-1 font-mono normal-case tracking-normal">{server.ip}</div>
                         )}
                       </button>
                     );
@@ -151,17 +157,18 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
           ) : (
             <>
               <button onClick={handleShowCreateRoom}
-                className="w-full px-6 py-4 bg-gradient-to-r from-emerald-700 to-emerald-800 text-white text-xl font-serif font-bold rounded border-2 border-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg mb-4">
+                className="w-full px-5 py-3 bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black text-zinc-300 hover:text-zinc-200 text-lg font-bold rounded-sm border-2 border-zinc-700 hover:border-red-900 shadow-[0_4px_12px_rgba(0,0,0,0.8)] hover:shadow-[0_4px_20px_rgba(139,0,0,0.6)] mb-3 uppercase tracking-wider transition-all transform hover:scale-105"
+                style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
                 ➕ CREATE ROOM
               </button>
 
               <div className="flex-1 flex flex-col min-h-0 mb-3">
                 <div className="flex justify-between items-center mb-2">
-                  <p className="text-yellow-600 font-serif text-sm">Available Rooms ({availableRooms.length})</p>
+                  <p className="text-zinc-500 text-xs uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>AVAILABLE ROOMS ({availableRooms.length})</p>
                   <button 
                     onClick={handleRefresh}
                     disabled={isLoading}
-                    className={`text-yellow-600 hover:text-yellow-400 text-sm ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`text-zinc-500 hover:text-zinc-300 text-xs ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     🔄
                   </button>
@@ -177,18 +184,14 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                           <button 
                             key={`${room.serverUrl}-${room.id}-${idx}`} 
                             onClick={() => onJoinRoom(room.id, room.serverUrl)}
-                            className="w-full px-4 py-3 bg-zinc-800 hover:bg-zinc-700 scale-[0.92] hover:scale-100 text-yellow-400 rounded border border-yellow-800 font-mono mb-1.5 text-left transition-all overflow-hidden">
+                            className="w-full px-4 py-3 bg-zinc-900 hover:bg-zinc-800 scale-[0.92] hover:scale-100 text-zinc-300 rounded-sm border border-zinc-800 hover:border-zinc-700 font-mono mb-1.5 text-left transition-all overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
                             <div className="flex justify-between items-center">
                               <span className="text-lg font-bold truncate">{room.id}</span>
                               <div className="flex flex-col items-end flex-shrink-0 ml-2">
-                                <span className={`text-xs px-2 py-0.5 rounded whitespace-nowrap ${
-                                  info.label === 'Cloud' 
-                                    ? 'bg-purple-900 text-purple-300'
-                                    : 'bg-blue-900 text-blue-300'
-                                }`}>
+                                <span className="text-[10px] px-2 py-0.5 rounded-sm whitespace-nowrap bg-zinc-800 text-zinc-400 uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>
                                   {info.emoji} {room.server}
                                 </span>
-                                <span className="text-xs text-gray-400 mt-1">{room.players}/2</span>
+                                <span className="text-xs text-zinc-600 mt-1">{room.players}/2</span>
                               </div>
                             </div>
                           </button>
@@ -197,23 +200,23 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                     </div>
                   ) : (
                     <div className="h-full flex items-center justify-center px-1">
-                      <div className="w-full p-4 bg-zinc-800 rounded border border-yellow-900 text-center">
-                        <p className="text-yellow-600 text-sm">No rooms available</p>
-                        <p className="text-gray-500 text-xs mt-1">Create one or join by ID</p>
+                      <div className="w-full p-4 bg-zinc-900 rounded-sm border border-zinc-800 text-center">
+                        <p className="text-zinc-500 text-sm uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>NO ROOMS AVAILABLE</p>
+                        <p className="text-zinc-700 text-xs mt-1">Create one or join by ID</p>
                       </div>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="border-t border-yellow-900 pt-3">
-                <p className="text-yellow-600 font-serif text-xs mb-2 text-center">Join by Room ID</p>
+              <div className="border-t border-zinc-800 pt-3">
+                <p className="text-zinc-500 text-xs mb-2 text-center uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>JOIN BY ROOM ID</p>
                 <input
                   type="text"
-                  placeholder="Enter Room ID"
+                  placeholder="ENTER ROOM ID"
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value.toUpperCase())}
-                  className="w-full px-4 py-2 bg-black text-yellow-400 border-2 border-yellow-800 rounded font-mono text-base text-center mb-2"
+                  className="w-full px-4 py-2 bg-black text-zinc-300 border-2 border-zinc-800 focus:border-zinc-700 rounded-sm font-mono text-base text-center mb-2 placeholder-zinc-700"
                   maxLength={6}
                 />
                 <button
@@ -239,7 +242,8 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                     }
                   }}
                   disabled={roomId.length !== 6}
-                  className="w-full px-5 py-2.5 bg-gradient-to-r from-yellow-700 to-yellow-800 text-black text-lg font-serif font-bold rounded border-2 border-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed hover:from-yellow-600 hover:to-yellow-700">
+                  className="w-full px-5 py-2.5 bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black text-zinc-300 hover:text-zinc-200 text-lg font-bold rounded-sm border-2 border-zinc-700 hover:border-red-900 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_12px_rgba(0,0,0,0.8)] hover:shadow-[0_4px_20px_rgba(139,0,0,0.6)] uppercase tracking-wider transition-all"
+                  style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
                   🚪 JOIN ROOM
                 </button>
               </div>
@@ -262,18 +266,18 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
 
       <style jsx>{`
         .scrollbar-custom::-webkit-scrollbar {
-          width: 8px;
+          width: 6px;
         }
         .scrollbar-custom::-webkit-scrollbar-track {
-          background: rgba(0, 0, 0, 0.3);
-          border-radius: 4px;
+          background: rgba(0, 0, 0, 0.5);
+          border-radius: 0;
         }
         .scrollbar-custom::-webkit-scrollbar-thumb {
-          background: rgba(202, 138, 4, 0.5);
-          border-radius: 4px;
+          background: rgba(63, 63, 70, 0.8);
+          border-radius: 0;
         }
         .scrollbar-custom::-webkit-scrollbar-thumb:hover {
-          background: rgba(202, 138, 4, 0.7);
+          background: rgba(82, 82, 91, 1);
         }
       `}</style>
     </div>
