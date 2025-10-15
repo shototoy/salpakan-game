@@ -7,5 +7,5 @@
 !src/js/
 !src/jsx/
 !src/jsx/components
-!server.js
+server.js
 !build/

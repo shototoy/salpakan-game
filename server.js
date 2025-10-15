@@ -143,7 +143,7 @@ const server = http.createServer((req, res) => {
     }
   </style>
 </head>
-<body>
+<body>  
   <div class="container">
     <h1>🎮 SALPAKAN</h1>
     <div class="status">● SERVER RUNNING</div>

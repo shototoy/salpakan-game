@@ -9,6 +9,7 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
   const [enabledServers, setEnabledServers] = useState([]);
 
   useEffect(() => {
+    WebSocketManager.init();
     loadEnabledServers();
     fetchAllRooms();
     const interval = setInterval(fetchAllRooms, 2000);
