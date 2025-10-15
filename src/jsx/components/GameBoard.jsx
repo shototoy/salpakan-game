@@ -7,9 +7,11 @@ import PieceIcon from './PieceIcon.jsx';
 
 export default function GameBoard({ 
   board, phase, mode, multiplayerMode, turn, setupPlayer, sel, moves, lastMove, 
-  devMode, playerId, opponentLastSelected, flaggedPiece, 
+  devMode, playerId, opponentLastSelected, flaggedPiece, useSVG,
   onCellClick, onCellPress, onCellRelease, GameModes, RANKS 
 }) {
+  console.log('GameBoard render - useSVG:', useSVG);
+  
   const modeHandler = mode === 'ai' ? GameModes.ai : (multiplayerMode === 'online' ? GameModes.online : GameModes.local);
   const perspective = modeHandler.getBoardPerspective(phase, turn, setupPlayer, playerId);
 
@@ -60,12 +62,12 @@ export default function GameBoard({
           style={{ flex: 1, aspectRatio: '1/1' }}
         >
           {cell ? (canSee ? (
-            <div className="w-full h-full p-[2px] md:p-1">
-              <PieceIcon rank={cell.r} player={cell.p} RANKS={RANKS} />
+            <div className="w-full h-full p-[2px] md:p-1" key={`${actualR}-${actualC}-${useSVG}`}>
+              <PieceIcon rank={cell.r} player={cell.p} useSVG={useSVG} RANKS={RANKS} />
             </div>
           ) : (
-            <div className="w-full h-full p-[2px] md:p-1">
-              <PieceIcon rank={null} player={cell.p} RANKS={RANKS} isHidden={true} />
+            <div className="w-full h-full p-[2px] md:p-1" key={`${actualR}-${actualC}-hidden-${useSVG}`}>
+              <PieceIcon rank={null} player={cell.p} useSVG={useSVG} RANKS={RANKS} isHidden={true} />
             </div>
           )) : ''}
         </div>

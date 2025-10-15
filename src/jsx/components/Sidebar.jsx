@@ -10,6 +10,9 @@ export default function Sidebar({
   useSVG, setUseSVG, omniscience, setOmniscience,
   onFinishSetup, onAutoSetup, onReset, RANKS
 }) {
+  console.log('Sidebar - useSVG:', useSVG, 'omniscience:', omniscience);
+  console.log('Sidebar - setUseSVG type:', typeof setUseSVG, 'setOmniscience type:', typeof setOmniscience);
+  
   return (
     <div className="order-2 flex-shrink-0 lg:flex-initial bg-gradient-to-b from-zinc-900 via-zinc-950 to-black border-t lg:border-t-0 lg:border-l-4 border-zinc-700 flex flex-col p-2 py-3 lg:p-4 overflow-y-auto max-h-[45vh] lg:max-h-full lg:w-[380px]">
       <div className="text-center mb-2 pb-2 lg:mb-4 lg:pb-4 border-b-2 border-zinc-800">
@@ -52,7 +55,14 @@ export default function Sidebar({
                 SVG Icons
               </span>
               <button
-                onClick={() => setUseSVG && setUseSVG(!useSVG)}
+                onClick={() => {
+                  console.log('SVG Toggle clicked! Current:', useSVG, 'Setting to:', !useSVG);
+                  if (setUseSVG) {
+                    setUseSVG(!useSVG);
+                  } else {
+                    console.error('setUseSVG is not defined!');
+                  }
+                }}
                 className={`relative w-12 h-6 rounded-sm border-2 transition-all ${
                   useSVG 
                     ? 'bg-emerald-800 border-emerald-600' 
@@ -70,7 +80,14 @@ export default function Sidebar({
                 Omniscience
               </span>
               <button
-                onClick={() => setOmniscience && setOmniscience(!omniscience)}
+                onClick={() => {
+                  console.log('Omniscience Toggle clicked! Current:', omniscience, 'Setting to:', !omniscience);
+                  if (setOmniscience) {
+                    setOmniscience(!omniscience);
+                  } else {
+                    console.error('setOmniscience is not defined!');
+                  }
+                }}
                 className={`relative w-12 h-6 rounded-sm border-2 transition-all ${
                   omniscience 
                     ? 'bg-violet-800 border-violet-600' 
@@ -100,7 +117,7 @@ export default function Sidebar({
           </button>
           <button onClick={onAutoSetup}
             className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-b from-emerald-800 to-emerald-900 hover:from-emerald-700 hover:to-emerald-800 text-zinc-100 hover:text-white text-sm lg:text-base font-bold rounded-sm border-2 border-emerald-700 hover:border-emerald-600 shadow-[0_4px_12px_rgba(0,0,0,0.8),0_0_15px_rgba(4,120,87,0.3)] hover:shadow-[0_4px_20px_rgba(4,120,87,0.6)] uppercase tracking-wider transition-all" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
-            <span style={{ color: 'white', textShadow: '0 0 10px rgba(255,255,255,0.8)' }}>⚡︎</span> AUTO DEPLOY
+            <span style={{ color: 'white', textShadow: '0 0 10px rgba(255,255,255,0.8)' }}>⚡</span> AUTO DEPLOY
           </button>
           <button onClick={onReset}
             className="px-3 py-1.5 lg:px-4 lg:py-2 bg-gradient-to-b from-red-900 to-red-950 hover:from-red-800 hover:to-red-900 text-zinc-100 hover:text-white text-sm lg:text-base font-bold rounded-sm border-2 border-red-800 hover:border-red-700 shadow-[0_4px_12px_rgba(0,0,0,0.8),0_0_15px_rgba(220,38,38,0.3)] hover:shadow-[0_4px_20px_rgba(220,38,38,0.6)] uppercase tracking-wider transition-all" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>

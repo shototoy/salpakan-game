@@ -1,5 +1,7 @@
+import imperiumSvg from '../assets/imperium.svg';
+
 export const TILESET_CONFIG = {
-  url: './assets/imperium.svg',
+  url: imperiumSvg,
   cellWidth: 240,
   cellHeight: 200,
   columns: 5,

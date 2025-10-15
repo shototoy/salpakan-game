@@ -1,4 +1,7 @@
+// ============================================
 // src/GameController.jsx
+// ============================================
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GameLogic, RANKS } from '../js/gameLogic';
 import GameModes from '../js/gameModes';
@@ -16,9 +19,6 @@ import {
 } from './components';
 
 export default function GameController() {
-  // ============================================
-  // STATE
-  // ============================================
   const playerIdRef = useRef(null);
   const longPressTimer = useRef(null);
   const [screen, setScreen] = useState('home');
@@ -30,6 +30,8 @@ export default function GameController() {
   const [moves, setMoves] = useState([]);
   const [msg, setMsg] = useState('Choose Mode');
   const [devMode, setDevMode] = useState(false);
+  const [useSVG, setUseSVG] = useState(true);
+  const [omniscience, setOmniscience] = useState(false);
   const [setupPlayer, setSetupPlayer] = useState(1);
   const [inventory, setInventory] = useState({});
   const [showPicker, setShowPicker] = useState(null);
@@ -56,9 +58,6 @@ export default function GameController() {
   const [flaggedPiece, setFlaggedPiece] = useState(null);
   const [selectedServerUrl, setSelectedServerUrl] = useState(null);
 
-  // ============================================
-  // WEBSOCKET EFFECTS
-  // ============================================
   useEffect(() => {
     if (screen === 'multiplayer') {
       const fetchRooms = async () => {
@@ -69,9 +68,7 @@ export default function GameController() {
       fetchRooms();
       const interval = setInterval(fetchRooms, 3000);
 
-      return () => {
-        clearInterval(interval);
-      };
+      return () => clearInterval(interval);
     } else if (screen !== 'room' && screen !== 'onlineGame') {
       setAvailableRooms([]);
     }
@@ -249,9 +246,6 @@ export default function GameController() {
     }
   }, [screen, roomId, selectedServerUrl]);
 
-  // ============================================
-  // GAME HANDLERS
-  // ============================================
   const handleCellPress = (r, c) => {
     if (phase !== 'playing') return;
     const cell = board[r][c];
@@ -627,9 +621,6 @@ export default function GameController() {
     });
   };
 
-  // ============================================
-  // RENDER
-  // ============================================
   if (screen === 'home') {
     return <HomeScreen 
       onModeSelect={(m, mp) => m === 'multiplayer' ? setScreen('multiplayer') : startSetup(m, mp)} 
@@ -690,10 +681,11 @@ export default function GameController() {
               sel={sel}
               moves={moves}
               lastMove={lastMove}
-              devMode={devMode}
+              devMode={omniscience || devMode}
               playerId={playerId}
               opponentLastSelected={opponentLastSelected}
               flaggedPiece={flaggedPiece}
+              useSVG={useSVG}
               onCellClick={handleCellClick}
               onCellPress={handleCellPress}
               onCellRelease={handleCellRelease}
@@ -717,9 +709,14 @@ export default function GameController() {
           devMode={devMode}
           lastMove={lastMove}
           opponentPiecesPlaced={opponentPiecesPlaced}
+          useSVG={useSVG}
+          setUseSVG={setUseSVG}
+          omniscience={omniscience}
+          setOmniscience={setOmniscience}
           onFinishSetup={finishSetup}
           onAutoSetup={handleAutoSetup}
           onReset={resetGame}
+          RANKS={RANKS}
         />
 
         {showVictory && victoryData && (
@@ -736,6 +733,7 @@ export default function GameController() {
             setupPlayer={multiplayerMode === 'online' ? playerId : setupPlayer}
             onSelect={(rank) => placeOnBoard(showPicker[0], showPicker[1], rank)}
             onCancel={() => setShowPicker(null)}
+            useSVG={useSVG}
             RANKS={RANKS}
           />
         )}
@@ -745,6 +743,7 @@ export default function GameController() {
             battleResult={battleResult}
             showingBattleForPlayer={showingBattleForPlayer}
             onContinue={confirmTurn}
+            useSVG={useSVG}
             RANKS={RANKS}
           />
         )}

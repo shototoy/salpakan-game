@@ -4,30 +4,35 @@
 
 import React, { useState, useEffect } from 'react';
 
-export default function PieceIcon({ rank, player, RANKS, isHidden, useSVG = false }) {
+export default function PieceIcon({ rank, player, RANKS, isHidden, useSVG = true }) {
   const [imageError, setImageError] = useState(false);
   const [tilesetConfig, setTilesetConfig] = useState(null);
   
+  console.log('PieceIcon render - useSVG:', useSVG, 'rank:', rank, 'player:', player);
+  
   useEffect(() => {
-    if (useSVG) {
-      const loadConfig = async () => {
-        try {
-          const config = await import('../../constants/config');
-          setTilesetConfig(config.TILESET_CONFIG);
-        } catch (e) {
-          console.log('Config not found, using text fallback');
-          setImageError(true);
-        }
-      };
-      loadConfig();
-    }
-  }, [useSVG]);
+    const loadConfig = async () => {
+      try {
+        console.log('Attempting to load config...');
+        const config = await import('../../constants/config');
+        console.log('Config loaded successfully:', config.TILESET_CONFIG);
+        setTilesetConfig(config.TILESET_CONFIG);
+      } catch (e) {
+        console.log('Config not found, using text fallback', e);
+        setImageError(true);
+      }
+    };
+    loadConfig();
+  }, []);
   
   const rankData = isHidden ? { tileX: 0, tileY: 3 } : RANKS?.find(r => r.r === rank);
   
   const shouldUseSVG = useSVG && tilesetConfig && !imageError && rankData;
+  
+  console.log('PieceIcon decision - useSVG:', useSVG, 'tilesetConfig:', !!tilesetConfig, 'imageError:', imageError, 'shouldUseSVG:', shouldUseSVG);
 
   if (!shouldUseSVG) {
+    console.log('Rendering TEXT for rank:', rank);
     return (
       <div className={`w-full h-full flex items-center justify-center text-xs md:text-sm font-black ${
         player === 2 
@@ -39,6 +44,8 @@ export default function PieceIcon({ rank, player, RANKS, isHidden, useSVG = fals
       </div>
     );
   }
+
+  console.log('Rendering SVG for rank:', rank, 'from URL:', tilesetConfig?.url);
 
   const { tileX, tileY } = rankData;
   const padding = 30;
