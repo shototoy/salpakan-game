@@ -23,13 +23,11 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url === '/discover') {
-    const roomList = Array.from(rooms.entries())
-      .filter(([id, room]) => Object.keys(room.players).length > 0)
-      .map(([id, room]) => ({
-        id,
-        players: Object.keys(room.players).length,
-        roomType: room.roomType
-      }));
+    const roomList = Array.from(rooms.entries()).map(([id, room]) => ({
+      id,
+      players: Object.keys(room.players).length,
+      roomType: room.roomType
+    }));
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -40,19 +38,16 @@ const server = http.createServer((req, res) => {
       rooms: roomList,
       timestamp: Date.now()
     }));
-    console.log(`🔍 Discovery from ${req.socket.remoteAddress}`);
     return;
   }
 
   if (req.url === '/' || req.url === '/status') {
-    const roomList = Array.from(rooms.entries())
-      .filter(([id, room]) => Object.keys(room.players).length > 0)
-      .map(([id, room]) => ({
-        id,
-        players: Object.keys(room.players).length,
-        maxPlayers: room.roomType === '3player' ? 3 : 2,
-        roomType: room.roomType
-      }));
+    const roomList = Array.from(rooms.entries()).map(([id, room]) => ({
+      id,
+      players: Object.keys(room.players).length,
+      maxPlayers: room.roomType === '3player' ? 3 : 2,
+      roomType: room.roomType
+    }));
 
     const totalPlayers = roomList.reduce((sum, r) => sum + r.players, 0);
     const serverType = isProduction ? 'Cloud (Render)' : 'Local';
@@ -305,10 +300,6 @@ const wss = new WebSocket.Server({
   maxPayload: 100 * 1024
 });
 
-// ============================================
-// NETWORK UTILITIES
-// ============================================
-
 function getLocalIP() {
   if (isProduction) return 'Cloud Server';
   
@@ -325,10 +316,6 @@ function getLocalIP() {
 
 const localIP = getLocalIP();
 const startTime = Date.now();
-
-// ============================================
-// WEBSOCKET SERVER
-// ============================================
 
 console.log('\n' + '='.repeat(60));
 console.log('🎮  SALPAKAN SERVER');
@@ -350,17 +337,11 @@ console.log(`🔍  Discovery: /discover endpoint available`);
 console.log('='.repeat(60) + '\n');
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`✅ Server ready on port ${port}`);
-  if (isProduction) {
-    console.log(`☁️  Running on Render cloud platform\n`);
-  } else {
-    console.log(`🏠  Running on local network\n`);
-  }
+  console.log(`✅ Listening on port ${port}\n`);
 });
 
 const rooms = new Map();
 
-// Cleanup inactive rooms periodically
 setInterval(() => {
   const now = Date.now();
   rooms.forEach((room, roomId) => {
@@ -370,15 +351,14 @@ setInterval(() => {
       const hasPlayers = Object.keys(room.players).length > 0;
       if (!hasPlayers) {
         rooms.delete(roomId);
-        console.log(`🗑️  Cleaned up inactive room: ${roomId}`);
+        console.log(`🗑️  Cleaned up room: ${roomId}`);
       }
     }
   });
 }, 5 * 60 * 1000);
 
 wss.on('connection', (ws, req) => {
-  const clientIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-  console.log(`📡 New connection from ${clientIP}`);
+  ws.isAlive = true;
   
   const pingInterval = setInterval(() => {
     if (ws.readyState === WebSocket.OPEN) {
@@ -393,7 +373,6 @@ wss.on('connection', (ws, req) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
-      console.log(`📨 Received: ${data.type} ${data.roomId ? `(${data.roomId})` : ''}`);
       
       if (data.roomId && rooms.has(data.roomId)) {
         rooms.get(data.roomId).lastActivity = Date.now();
@@ -411,6 +390,7 @@ wss.on('connection', (ws, req) => {
         case 'move': handleMove(data); break;
         case 'gameEnd': handleGameEnd(data); break;
         case 'updateName': handleUpdateName(ws, data); break;
+        case 'watchGame': handleWatchGame(ws, data); break;
       }
     } catch (error) {
       console.error('❌ Error:', error);
@@ -419,7 +399,6 @@ wss.on('connection', (ws, req) => {
 
   ws.on('close', () => {
     clearInterval(pingInterval);
-    console.log('🔌 Connection closed');
     handleDisconnect(ws);
   });
 
@@ -431,7 +410,6 @@ wss.on('connection', (ws, req) => {
 setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.isAlive === false) {
-      console.log('💀 Terminating dead connection');
       return ws.terminate();
     }
     ws.isAlive = false;
@@ -440,21 +418,17 @@ setInterval(() => {
 }, 30000);
 
 function handleGetRooms(ws) {
-  const roomList = Array.from(rooms.entries())
-    .filter(([id, room]) => {
-      const activePlayers = Object.keys(room.players).length;
-      return activePlayers > 0;
-    })
-    .map(([id, room]) => {
-      const maxPlayers = room.roomType === '3player' ? 3 : 2;
-      const playerCount = Object.keys(room.players).length;
-      return {
-        id,
-        players: playerCount,
-        isFull: playerCount >= maxPlayers,
-        roomType: room.roomType
-      };
-    });
+  const roomList = Array.from(rooms.entries()).map(([id, room]) => {
+    const maxPlayers = room.roomType === '3player' ? 3 : 2;
+    const playerCount = Object.keys(room.players).length;
+    return {
+      id,
+      players: playerCount,
+      isFull: false,
+      roomType: room.roomType,
+      gameStarted: room.gameStarted || false
+    };
+  });
   
   ws.send(JSON.stringify({ type: 'roomList', rooms: roomList }));
 }
@@ -465,15 +439,16 @@ function handleCreateRoom(ws, data) {
   
   rooms.set(roomId, {
     roomType,
-    players: {}, // Changed from array to object: {playerId: slotNum}
+    players: {},
     clients: new Map(),
     readyStates: {},
     setupComplete: {},
     playerNames: {},
+    gameStarted: false,
     lastActivity: Date.now()
   });
   
-  console.log(`🆕 Room created: ${roomId} (${roomType})`);
+  console.log(`🆕 Room ${roomId} (${roomType})`);
   
   ws.send(JSON.stringify({
     type: 'roomCreated',
@@ -493,15 +468,6 @@ function handleJoin(ws, data) {
   const room = rooms.get(roomId);
   room.lastActivity = Date.now();
   
-  const maxPlayers = room.roomType === '3player' ? 3 : 2;
-  const currentPlayerCount = Object.keys(room.players).length;
-  
-  if (currentPlayerCount >= maxPlayers) {
-    ws.send(JSON.stringify({ type: 'error', message: 'Room is full' }));
-    return;
-  }
-  
-  // Assign a unique player ID
   let playerId = 1;
   const existingIds = Object.keys(room.players).map(Number);
   while (existingIds.includes(playerId)) {
@@ -513,9 +479,8 @@ function handleJoin(ws, data) {
   ws.playerId = playerId;
   ws.isAlive = true;
   
-  console.log(`✅ Player ${playerId} joined room ${roomId} (waiting to select slot)`);
+  console.log(`➕ Player ${playerId} → ${roomId}`);
   
-  // Send room state to the joining player
   ws.send(JSON.stringify({
     type: 'roomJoined',
     roomId,
@@ -523,10 +488,10 @@ function handleJoin(ws, data) {
     players: room.players,
     readyStates: room.readyStates,
     roomType: room.roomType,
-    playerNames: room.playerNames
+    playerNames: room.playerNames,
+    gameStarted: room.gameStarted || false
   }));
   
-  // Notify others that a player joined (but hasn't selected slot yet)
   broadcastToRoom(roomId, {
     type: 'playerJoined',
     players: room.players,
@@ -539,31 +504,30 @@ function handleSelectSlot(ws, data) {
   const { roomId, playerId, slotNum } = data;
   const room = rooms.get(roomId);
   
-  if (!room) {
-    console.log(`❌ Room ${roomId} not found`);
-    return;
+  if (!room) return;
+  
+  if (room.players[playerId] === slotNum) {
+    delete room.players[playerId];
+    delete room.readyStates[playerId];
+    console.log(`🔓 Player ${playerId} unselected slot ${slotNum}`);
+  } else {
+    const slotTaken = Object.values(room.players).includes(slotNum);
+    if (slotTaken) {
+      ws.send(JSON.stringify({ type: 'error', message: 'Slot already taken' }));
+      return;
+    }
+    
+    if (room.players[playerId]) {
+      delete room.readyStates[playerId];
+    }
+    
+    room.lastActivity = Date.now();
+    room.players[playerId] = slotNum;
+    room.readyStates[playerId] = false;
+    
+    console.log(`🎯 Player ${playerId} → Slot ${slotNum}`);
   }
   
-  // Check if slot is already taken
-  const slotTaken = Object.values(room.players).includes(slotNum);
-  if (slotTaken) {
-    ws.send(JSON.stringify({ type: 'error', message: 'Slot already taken' }));
-    return;
-  }
-  
-  // Check if player already has a slot
-  if (room.players[playerId]) {
-    ws.send(JSON.stringify({ type: 'error', message: 'You already have a slot' }));
-    return;
-  }
-  
-  room.lastActivity = Date.now();
-  room.players[playerId] = slotNum;
-  room.readyStates[playerId] = false;
-  
-  console.log(`🎯 Player ${playerId} selected slot ${slotNum} in room ${roomId}`);
-  
-  // Broadcast updated player list to all in room
   broadcastToRoom(roomId, {
     type: 'slotSelected',
     playerId,
@@ -583,8 +547,6 @@ function handleUpdateName(ws, data) {
   room.lastActivity = Date.now();
   room.playerNames[playerId] = name;
   
-  console.log(`✏️ Player ${playerId} set name to "${name}"`);
-  
   broadcastToRoom(roomId, {
     type: 'nameUpdated',
     playerId,
@@ -597,36 +559,23 @@ function handleToggleReady(ws, data) {
   const { roomId, playerId, isReady } = data;
   const room = rooms.get(roomId);
   
-  if (!room) {
-    console.log(`❌ Room ${roomId} not found`);
-    return;
-  }
-  
-  // Check if player has selected a slot
-  if (!room.players[playerId]) {
-    ws.send(JSON.stringify({ type: 'error', message: 'Select a slot first' }));
-    return;
-  }
+  if (!room || !room.players[playerId]) return;
   
   room.lastActivity = Date.now();
   room.readyStates[playerId] = isReady;
   
-  const maxPlayers = room.roomType === '3player' ? 3 : 2;
-  const playerCount = Object.keys(room.players).length;
-  const fullRoom = playerCount >= maxPlayers;
-  
-  // For 3-player, only check slots 1 and 2 for ready state (slot 3 is observer)
   let allReady = false;
   if (room.roomType === '3player') {
     const slot1Player = Object.keys(room.players).find(pid => room.players[pid] === 1);
     const slot2Player = Object.keys(room.players).find(pid => room.players[pid] === 2);
-    allReady = fullRoom && slot1Player && slot2Player && 
+    allReady = slot1Player && slot2Player && 
                room.readyStates[slot1Player] && room.readyStates[slot2Player];
   } else {
-    allReady = fullRoom && Object.values(room.readyStates).every(ready => ready);
+    const slot1Player = Object.keys(room.players).find(pid => room.players[pid] === 1);
+    const slot2Player = Object.keys(room.players).find(pid => room.players[pid] === 2);
+    allReady = slot1Player && slot2Player && 
+               room.readyStates[slot1Player] && room.readyStates[slot2Player];
   }
-  
-  console.log(`🎯 Player ${playerId} ready: ${isReady}, all ready: ${allReady}`);
   
   broadcastToRoom(roomId, {
     type: 'playerReady',
@@ -639,8 +588,20 @@ function handleToggleReady(ws, data) {
 
 function handleStartGame(data) {
   const { roomId } = data;
-  console.log(`🎮 Game starting: ${roomId}`);
+  const room = rooms.get(roomId);
+  if (!room) return;
+  
+  room.gameStarted = true;
+  console.log(`🎮 Game started: ${roomId}`);
   broadcastToRoom(roomId, { type: 'gameStart' });
+}
+
+function handleWatchGame(ws, data) {
+  const { roomId } = data;
+  const room = rooms.get(roomId);
+  if (!room || !room.gameStarted) return;
+  
+  ws.send(JSON.stringify({ type: 'watchGame', gameStarted: true }));
 }
 
 function handleDeploymentUpdate(data) {
@@ -665,14 +626,12 @@ function handleSetupComplete(data) {
   
   room.lastActivity = Date.now();
   room.setupComplete[playerId] = true;
-  console.log(`✅ Player ${playerId} setup complete`);
   
   broadcastToRoom(roomId, {
     type: 'opponentSetupComplete',
     playerId
   }, playerId);
   
-  // For 3-player, only check slots 1 and 2
   let bothReady = false;
   if (room.roomType === '3player') {
     const slot1Player = Object.keys(room.players).find(pid => room.players[pid] === 1);
@@ -680,35 +639,33 @@ function handleSetupComplete(data) {
     bothReady = slot1Player && slot2Player && 
                 room.setupComplete[slot1Player] && room.setupComplete[slot2Player];
   } else {
-    bothReady = Object.values(room.setupComplete).filter(Boolean).length === 2;
+    const slot1Player = Object.keys(room.players).find(pid => room.players[pid] === 1);
+    const slot2Player = Object.keys(room.players).find(pid => room.players[pid] === 2);
+    bothReady = slot1Player && slot2Player && 
+                room.setupComplete[slot1Player] && room.setupComplete[slot2Player];
   }
   
   if (bothReady) {
-    console.log(`🎮 Both players ready: ${roomId}`);
     broadcastToRoom(roomId, { type: 'bothPlayersReady' });
   }
 }
 
 function handleMove(data) {
-  const { roomId, playerId } = data;
-  console.log(`♟️  Move by Player ${playerId}`);
-  
+  const { roomId } = data;
   const room = rooms.get(roomId);
   if (!room) return;
   
   room.lastActivity = Date.now();
-  
-  broadcastToRoom(roomId, { type: 'move', ...data }, playerId);
+  broadcastToRoom(roomId, { type: 'move', ...data });
 }
 
 function handleGameEnd(data) {
   const { roomId } = data;
-  console.log(`🏆 Game ended: ${roomId}`);
   broadcastToRoom(roomId, { type: 'gameEnd', ...data });
   
   setTimeout(() => {
     rooms.delete(roomId);
-    console.log(`🗑️  Room deleted: ${roomId}`);
+    console.log(`🗑️  Room closed: ${roomId}`);
   }, 5000);
 }
 
@@ -717,8 +674,6 @@ function handleDisconnect(ws) {
   
   const room = rooms.get(ws.roomId);
   if (!room) return;
-  
-  console.log(`👋 Player ${ws.playerId} left room ${ws.roomId}`);
   
   delete room.players[ws.playerId];
   room.clients.delete(ws.playerId);
@@ -736,7 +691,6 @@ function handleDisconnect(ws) {
   
   if (Object.keys(room.players).length === 0) {
     rooms.delete(ws.roomId);
-    console.log(`🗑️  Empty room deleted: ${ws.roomId}`);
   }
 }
 
@@ -752,35 +706,28 @@ function broadcastToRoom(roomId, message, excludePlayerId = null) {
 }
 
 process.on('SIGTERM', () => {
-  console.log('\n⚠️  SIGTERM received, shutting down gracefully...');
-  
   wss.clients.forEach((ws) => {
     ws.close(1000, 'Server shutting down');
   });
   
   wss.close(() => {
-    console.log('✅ WebSocket server closed');
     server.close(() => {
-      console.log('✅ HTTP server closed');
       process.exit(0);
     });
   });
   
   setTimeout(() => {
-    console.error('⚠️  Forced shutdown after timeout');
     process.exit(1);
   }, 10000);
 });
 
 process.on('SIGINT', () => {
-  console.log('\n👋 Shutting down...');
   wss.close(() => {
-    console.log('✅ Server closed');
     process.exit(0);
   });
 });
 
 setInterval(() => {
   const uptime = Math.floor((Date.now() - startTime) / 1000 / 60);
-  console.log(`\n📊 Stats: ${rooms.size} rooms, ${wss.clients.size} connections, ${uptime}m uptime`);
+  console.log(`\n📊 ${rooms.size} rooms | ${wss.clients.size} connections | ${uptime}m uptime`);
 }, 5 * 60 * 1000);
