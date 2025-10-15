@@ -191,41 +191,62 @@ const WebSocketManager = {
 
   fetchRoomsFromServer(serverUrl, serverName) {
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(serverUrl);
-      const timeoutId = setTimeout(() => {
-        ws.close();
-        reject(new Error(`Timeout connecting to ${serverName}`));
-      }, 2000);
-
-      ws.onopen = () => {
-        this.log(`Connected to ${serverName} for room list`);
-        ws.send(JSON.stringify({ type: 'getRooms' }));
-      };
-
-      ws.onmessage = (event) => {
-        clearTimeout(timeoutId);
-        const data = JSON.parse(event.data);
-        if (data.type === 'roomList') {
-          const roomsWithServer = data.rooms.map(room => ({
-            ...room,
-            server: serverName,
-            serverUrl: serverUrl
-          }));
+      const attemptFetch = (url, isRetry = false) => {
+        this.log(`Attempting fetch from ${url} (retry: ${isRetry})`);
+        const ws = new WebSocket(url);
+        const timeoutId = setTimeout(() => {
+          this.log(`Timeout on ${url}`);
           ws.close();
-          resolve(roomsWithServer);
-        }
+          
+          if (!isRetry && url.startsWith('wss://')) {
+            const fallbackUrl = url.replace('wss://', 'ws://');
+            this.log(`Trying WS fallback: ${fallbackUrl}`);
+            attemptFetch(fallbackUrl, true);
+          } else {
+            reject(new Error(`Timeout connecting to ${serverName}`));
+          }
+        }, 3000);
+
+        ws.onopen = () => {
+          clearTimeout(timeoutId);
+          this.log(`Connected to ${serverName} for room list`);
+          ws.send(JSON.stringify({ type: 'getRooms' }));
+        };
+
+        ws.onmessage = (event) => {
+          clearTimeout(timeoutId);
+          const data = JSON.parse(event.data);
+          if (data.type === 'roomList') {
+            const roomsWithServer = data.rooms.map(room => ({
+              ...room,
+              server: serverName,
+              serverUrl: url
+            }));
+            ws.close();
+            resolve(roomsWithServer);
+          }
+        };
+
+        ws.onerror = (error) => {
+          clearTimeout(timeoutId);
+          this.log(`Error on ${url}`, error);
+          ws.close();
+          
+          if (!isRetry && url.startsWith('wss://')) {
+            const fallbackUrl = url.replace('wss://', 'ws://');
+            this.log(`Error, trying WS fallback: ${fallbackUrl}`);
+            attemptFetch(fallbackUrl, true);
+          } else {
+            resolve([]);
+          }
+        };
+
+        ws.onclose = () => {
+          clearTimeout(timeoutId);
+        };
       };
 
-      ws.onerror = () => {
-        clearTimeout(timeoutId);
-        this.log(`Error fetching from ${serverName}`);
-        ws.close();
-        resolve([]);
-      };
-
-      ws.onclose = () => {
-        clearTimeout(timeoutId);
-      };
+      attemptFetch(serverUrl);
     });
   },
 
@@ -251,11 +272,32 @@ const WebSocketManager = {
     this.currentRoomId = roomId;
     
     this.log(`Connecting to ${url} for room ${roomId}`);
+    this.attemptConnection(url, roomId, playerId, false);
     
+    return this.ws;
+  },
+
+  attemptConnection(url, roomId, playerId, isRetry) {
+    this.log(`Attempt connection to ${url} (retry: ${isRetry})`);
     const ws = new WebSocket(url);
     this.ws = ws;
 
+    const timeout = setTimeout(() => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        this.log(`Connection timeout on ${url}`);
+        ws.close();
+        
+        if (!isRetry && url.startsWith('wss://')) {
+          const fallbackUrl = url.replace('wss://', 'ws://');
+          this.log(`Timeout, trying WS fallback: ${fallbackUrl}`);
+          this.currentServer = fallbackUrl;
+          this.attemptConnection(fallbackUrl, roomId, playerId, true);
+        }
+      }
+    }, 5000);
+
     ws.onopen = () => {
+      clearTimeout(timeout);
       this.log('Connection opened, joining room');
       ws.send(JSON.stringify({ type: 'join', roomId, playerId }));
     };
@@ -272,16 +314,23 @@ const WebSocketManager = {
     };
 
     ws.onerror = (error) => {
+      clearTimeout(timeout);
       this.log('Connection error', error);
+      
+      if (!isRetry && url.startsWith('wss://')) {
+        const fallbackUrl = url.replace('wss://', 'ws://');
+        this.log(`Error, trying WS fallback: ${fallbackUrl}`);
+        this.currentServer = fallbackUrl;
+        this.attemptConnection(fallbackUrl, roomId, playerId, true);
+      }
     };
     
     ws.onclose = (event) => {
+      clearTimeout(timeout);
       this.log('Connection closed', { code: event.code, reason: event.reason });
       this.ws = null;
       this.currentRoomId = null;
     };
-
-    return ws;
   },
 
   send(data) {
