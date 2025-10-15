@@ -8,6 +8,9 @@ import ServerSettings from './ServerSettings';
 export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roomId, setRoomId, WebSocketManager, onRefreshRooms }) {
   const [showSettings, setShowSettings] = useState(false);
   const [showServerSelect, setShowServerSelect] = useState(false);
+  const [showRoomConfig, setShowRoomConfig] = useState(false);
+  const [selectedServer, setSelectedServer] = useState(null);
+  const [roomType, setRoomType] = useState('2player'); // '2player' or '3player'
   const [availableRooms, setAvailableRooms] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [enabledServers, setEnabledServers] = useState([]);
@@ -56,9 +59,10 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
     fetchAllRooms();
   };
 
-  const handleCreateRoom = (serverUrl) => {
-    onCreateRoom(serverUrl);
+  const handleCreateRoom = (serverUrl, type) => {
+    onCreateRoom(serverUrl, type);
     setShowServerSelect(false);
+    setShowRoomConfig(false);
   };
 
   const handleShowCreateRoom = () => {
@@ -79,10 +83,17 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
     }
     
     if (uniqueServers.length === 1) {
-      handleCreateRoom(uniqueServers[0].url);
+      setSelectedServer(uniqueServers[0].url);
+      setShowRoomConfig(true);
     } else {
       setShowServerSelect(true);
     }
+  };
+
+  const handleServerSelect = (serverUrl) => {
+    setSelectedServer(serverUrl);
+    setShowServerSelect(false);
+    setShowRoomConfig(true);
   };
 
   // ============================================
@@ -129,7 +140,39 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
             </h2>
           </div>
 
-          {showServerSelect ? (
+          {showRoomConfig ? (
+            <div className="flex-1 flex flex-col min-h-0">
+              <button onClick={() => setShowRoomConfig(false)} className="mb-4 text-zinc-400 hover:text-zinc-100 text-xs uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>
+                ← RETURN
+              </button>
+              <h3 className="text-lg font-black text-zinc-200 mb-4 text-center tracking-widest uppercase" style={{ fontFamily: 'Impact, "Arial Black", sans-serif', textShadow: '1px 1px 0px rgba(0,0,0,1), 0 0 10px rgba(161,161,170,0.6)' }}>ROOM TYPE</h3>
+              <div className="flex-1 overflow-y-auto pr-2 scrollbar-custom">
+                <div className="flex flex-col gap-3 pb-2">
+                  <button 
+                    onClick={() => handleCreateRoom(selectedServer, '2player')}
+                    className="w-full px-6 py-4 bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black text-zinc-100 hover:text-white text-base font-bold rounded-sm border-2 border-zinc-600 hover:border-red-700 shadow-[0_4px_12px_rgba(0,0,0,0.8),0_0_20px_rgba(161,161,170,0.3)] hover:shadow-[0_4px_20px_rgba(220,38,38,0.8),0_0_30px_rgba(220,38,38,0.4)] transform scale-95 hover:scale-100 transition-all uppercase tracking-wider"
+                    style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+                    <div className="flex items-center justify-between">
+                      <span>⚔️ 2 PLAYERS</span>
+                      <span className="text-xs opacity-75">STANDARD</span>
+                    </div>
+                    <div className="text-xs opacity-75 mt-1 font-mono normal-case tracking-normal">Commander vs Commander</div>
+                  </button>
+                  
+                  <button 
+                    onClick={() => handleCreateRoom(selectedServer, '3player')}
+                    className="w-full px-6 py-4 bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black text-zinc-100 hover:text-white text-base font-bold rounded-sm border-2 border-zinc-600 hover:border-red-700 shadow-[0_4px_12px_rgba(0,0,0,0.8),0_0_20px_rgba(161,161,170,0.3)] hover:shadow-[0_4px_20px_rgba(220,38,38,0.8),0_0_30px_rgba(220,38,38,0.4)] transform scale-95 hover:scale-100 transition-all uppercase tracking-wider"
+                    style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+                    <div className="flex items-center justify-between">
+                      <span>👁️ 3 PLAYERS</span>
+                      <span className="text-xs opacity-75">OBSERVER</span>
+                    </div>
+                    <div className="text-xs opacity-75 mt-1 font-mono normal-case tracking-normal">2 Commanders + 1 Observer</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : showServerSelect ? (
             <div className="flex-1 flex flex-col min-h-0">
               <button onClick={() => setShowServerSelect(false)} className="mb-4 text-zinc-400 hover:text-zinc-100 text-xs uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>
                 ← RETURN
@@ -142,7 +185,7 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                     return (
                       <button 
                         key={server.url}
-                        onClick={() => handleCreateRoom(server.url)}
+                        onClick={() => handleServerSelect(server.url)}
                         className={`w-full px-6 py-4 bg-gradient-to-b text-zinc-100 hover:text-white text-base font-bold rounded-sm border-2 shadow-[0_4px_12px_rgba(0,0,0,0.8),0_0_20px_rgba(161,161,170,0.3)] hover:shadow-[0_4px_20px_rgba(220,38,38,0.8),0_0_30px_rgba(220,38,38,0.4)] transform scale-95 hover:scale-100 transition-all uppercase tracking-wider ${info.color}`}
                         style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
                         <div className="flex items-center justify-between">
@@ -184,18 +227,21 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                         const info = getServerTypeInfo({ 
                           type: room.server.includes('Cloud') ? 'cloud' : 'manual'
                         });
+                        const maxPlayers = room.roomType === '3player' ? 3 : 2;
+                        const roomTypeIcon = room.roomType === '3player' ? '👁️' : '⚔️';
+                        const roomTypeLabel = room.roomType === '3player' ? '3P' : '1V1';
                         return (
                           <button 
                             key={`${room.serverUrl}-${room.id}-${idx}`} 
                             onClick={() => onJoinRoom(room.id, room.serverUrl)}
                             className="w-full px-4 py-3 bg-zinc-900 hover:bg-zinc-800 scale-95 hover:scale-100 text-zinc-200 hover:text-zinc-100 rounded-sm border border-zinc-800 hover:border-zinc-700 font-mono mb-1.5 text-left transition-all overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
                             <div className="flex justify-between items-center">
-                              <span className="text-lg font-bold truncate">{room.id}</span>
+                              <span className="text-lg font-bold truncate">{roomTypeIcon} {room.id}</span>
                               <div className="flex flex-col items-end flex-shrink-0 ml-2">
                                 <span className="text-[10px] px-2 py-0.5 rounded-sm whitespace-nowrap bg-zinc-800 text-zinc-400 uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>
                                   {info.emoji} {room.server}
                                 </span>
-                                <span className="text-xs text-zinc-600 mt-1">{room.players}/2</span>
+                                <span className="text-xs text-zinc-600 mt-1">{room.players}/{maxPlayers} {roomTypeLabel}</span>
                               </div>
                             </div>
                           </button>

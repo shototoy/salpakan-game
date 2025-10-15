@@ -295,6 +295,49 @@ const WebSocketManager = {
     return ws;
   },
 
+  createRoom(roomType = '2player', serverUrl = null) {
+  const url = serverUrl || this.getServerUrl();
+  
+  if (this.ws) {
+    this.log('Closing previous connection');
+    this.ws.close();
+    this.ws = null;
+  }
+
+  this.currentServer = url;
+  
+  this.log(`Creating ${roomType} room on ${url}`);
+  
+  const ws = new WebSocket(url);
+  this.ws = ws;
+
+  ws.onopen = () => {
+    this.log('Connection opened, creating room');
+    ws.send(JSON.stringify({ type: 'createRoom', roomType }));
+  };
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    this.log(`Received: ${data.type}`, data);
+    const callback = this.callbacks[data.type];
+    if (callback) {
+      callback(data);
+    }
+  };
+
+  ws.onerror = (error) => {
+    this.log('Connection error', error);
+  };
+  
+  ws.onclose = (event) => {
+    this.log('Connection closed', { code: event.code, reason: event.reason });
+    this.ws = null;
+    this.currentRoomId = null;
+  };
+  
+  return ws;
+},
+
   send(data) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.log(`Sending: ${data.type}`, data);

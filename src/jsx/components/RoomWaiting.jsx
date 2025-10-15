@@ -2,29 +2,83 @@
 // jsx/components/RoomWaiting.jsx
 // ============================================
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 
-export default function RoomWaiting({ roomId, onLeave, onStart, onToggleReady, players, isReady, myReady, opponentReady, playerId, connectionStatus }) {
+export default function RoomWaiting({ 
+  roomId, onLeave, onStart, onToggleReady, players, isReady, myReady, 
+  opponentReady, playerId, connectionStatus, roomType, onSelectSlot, 
+  playerNames, onUpdateName 
+}) {
+  const [nameInput, setNameInput] = useState('');
+  const isThreePlayer = roomType === '3player';
+  const maxPlayers = isThreePlayer ? 3 : 2;
 
   const playerSlots = useMemo(() => {
-    const slots = [null, null];
-    players.forEach(p => {
-      if (p === 1) slots[0] = 1;
-      if (p === 2) slots[1] = 2;
-    });
-    return slots;
-  }, [players]);
+    if (!players || typeof players !== 'object') {
+      return isThreePlayer ? [null, null, null] : [null, null];
+    }
+
+    if (isThreePlayer) {
+      const slots = [null, null, null];
+      Object.entries(players).forEach(([pid, slotNum]) => {
+        if (slotNum >= 1 && slotNum <= 3) {
+          slots[slotNum - 1] = parseInt(pid);
+        }
+      });
+      return slots;
+    } else {
+      const slots = [null, null];
+      Object.entries(players).forEach(([pid, slotNum]) => {
+        if (slotNum === 1) slots[0] = parseInt(pid);
+        if (slotNum === 2) slots[1] = parseInt(pid);
+      });
+      return slots;
+    }
+  }, [players, isThreePlayer]);
+
+  const mySlot = players && players[playerId] ? players[playerId] : null;
+  const isObserver = isThreePlayer && mySlot === 3;
+  const canStart = mySlot === 1;
+  
+  const playerCount = players && typeof players === 'object' ? Object.keys(players).length : 0;
 
   const handleToggleReady = () => {
-    onToggleReady();
+    if (!isObserver && mySlot) {
+      onToggleReady();
+    }
   };
 
-  const handleStart = () => {
-    onStart();
+  const handleSelectSlot = (slotNum) => {
+    if (onSelectSlot && !playerSlots[slotNum - 1] && !mySlot) {
+      onSelectSlot(slotNum);
+    }
   };
 
-  const handleLeave = () => {
-    onLeave();
+  const handleUpdateName = () => {
+    if (nameInput.trim() && onUpdateName) {
+      onUpdateName(nameInput.trim());
+      setNameInput('');
+    }
+  };
+
+  const getReadyStatus = (slotNum) => {
+    const pid = playerSlots[slotNum - 1];
+    if (!pid) return { ready: false, text: '⊕ EMPTY' };
+    
+    if (isThreePlayer && slotNum === 3) {
+      return { ready: true, text: '👁️ OBSERVING' };
+    }
+    
+    if (pid === playerId) {
+      return { ready: myReady, text: myReady ? '✓ READY' : '⏳ STANDBY' };
+    } else {
+      return { ready: opponentReady, text: opponentReady ? '✓ READY' : '⏳ STANDBY' };
+    }
+  };
+
+  const getSlotLabel = (slotNum) => {
+    if (isThreePlayer && slotNum === 3) return 'OBSERVER';
+    return `CMDR ${slotNum}`;
   };
 
   return (
@@ -33,57 +87,127 @@ export default function RoomWaiting({ roomId, onLeave, onStart, onToggleReady, p
         <div className="absolute inset-0 bg-gradient-to-br from-red-950/10 via-transparent to-black/30 pointer-events-none rounded-sm"></div>
         
         <div className="relative z-10 flex flex-col h-full">
-          <button onClick={handleLeave} className="mb-4 text-zinc-400 hover:text-zinc-100 text-xs uppercase tracking-wider self-start" style={{ fontFamily: 'Courier New, monospace' }}>
+          <button onClick={onLeave} className="mb-4 text-zinc-400 hover:text-zinc-100 text-xs uppercase tracking-wider self-start" style={{ fontFamily: 'Courier New, monospace' }}>
             ← RETURN
           </button>
+          
           <div className="bg-black rounded-sm p-6 mb-6 border-2 border-zinc-800">
             <p className="text-zinc-400 text-xs mb-2 uppercase tracking-widest" style={{ fontFamily: 'Courier New, monospace' }}>ROOM ID</p>
             <p className="text-zinc-200 text-4xl font-mono font-bold tracking-wider" style={{ textShadow: '0 0 10px rgba(161,161,170,0.5)' }}>{roomId}</p>
-            <div className={`mt-3 text-xs uppercase tracking-wider ${connectionStatus === 'connected' ? 'text-green-600' : 'text-zinc-600'}`} style={{ fontFamily: 'Courier New, monospace' }}>
-              {connectionStatus === 'connected' ? '✓ CONNECTED' : '⏳ CONNECTING...'}
+            <div className="flex items-center justify-center gap-3 mt-3">
+              <div className={`text-xs uppercase tracking-wider ${connectionStatus === 'connected' ? 'text-green-600' : 'text-zinc-600'}`} style={{ fontFamily: 'Courier New, monospace' }}>
+                {connectionStatus === 'connected' ? '✓ CONNECTED' : '⏳ CONNECTING...'}
+              </div>
+              {isThreePlayer && (
+                <div className="text-xs uppercase tracking-wider text-violet-400" style={{ fontFamily: 'Courier New, monospace' }}>
+                  👁️ 3-PLAYER
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="bg-zinc-900 rounded-sm p-4 mb-6 border border-zinc-800">
-            <p className="text-zinc-400 text-xs mb-3 uppercase tracking-widest" style={{ fontFamily: 'Courier New, monospace' }}>COMMANDERS ({players.filter(p => p).length}/2)</p>
-            {playerSlots.map((playerNum, idx) => {
-              const hasPlayer = playerNum !== null;
-              const isMe = hasPlayer && playerNum === playerId;
-              const playerReady = hasPlayer ? (isMe ? myReady : opponentReady) : false;
+          {playerNames && (
+            <div className="bg-zinc-900 rounded-sm p-3 mb-4 border border-zinc-800">
+              <p className="text-zinc-400 text-xs mb-2 uppercase tracking-widest" style={{ fontFamily: 'Courier New, monospace' }}>YOUR IGN</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter name..."
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  maxLength={16}
+                  className="flex-1 px-3 py-1.5 bg-black text-zinc-200 border border-zinc-800 focus:border-zinc-700 rounded-sm font-mono text-sm"
+                />
+                <button
+                  onClick={handleUpdateName}
+                  disabled={!nameInput.trim()}
+                  className="px-4 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-zinc-100 text-xs font-bold rounded-sm border border-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider transition-all"
+                  style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+                  SET
+                </button>
+              </div>
+              {playerNames[playerId] && (
+                <div className="mt-2 text-zinc-300 text-sm font-mono">
+                  Current: {playerNames[playerId]}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="bg-zinc-900 rounded-sm p-4 mb-4 border border-zinc-800 flex-1 overflow-y-auto">
+            <p className="text-zinc-400 text-xs mb-3 uppercase tracking-widest" style={{ fontFamily: 'Courier New, monospace' }}>
+              {isThreePlayer ? 'PLAYERS' : 'COMMANDERS'} ({playerCount}/{maxPlayers})
+            </p>
+            
+            {playerSlots.map((pid, idx) => {
+              const slotNum = idx + 1;
+              const hasPlayer = pid !== null;
+              const isMe = hasPlayer && pid === playerId;
+              const status = getReadyStatus(slotNum);
+              const isObserverSlot = isThreePlayer && slotNum === 3;
+              const canSelect = !mySlot && !hasPlayer && connectionStatus === 'connected';
 
               return (
-                <div key={idx} className={`bg-black rounded-sm px-3 py-2 mb-2 flex justify-between ${!hasPlayer ? 'opacity-50' : ''}`}>
-                  <span className="text-zinc-200 text-sm uppercase tracking-wider" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
-                    CMDR {idx + 1} {isMe ? '(YOU)' : ''}
+                <button
+                  key={idx}
+                  onClick={() => canSelect && handleSelectSlot(slotNum)}
+                  disabled={!canSelect}
+                  className={`w-full bg-black rounded-sm px-3 py-2.5 mb-2 flex justify-between items-center transition-all ${
+                    canSelect ? 'opacity-70 hover:opacity-100 cursor-pointer' : hasPlayer ? 'opacity-100 cursor-default' : 'opacity-50 cursor-not-allowed'
+                  } ${canSelect ? 'border-2 border-dashed border-zinc-700 hover:border-zinc-600' : 'border border-zinc-800'} ${
+                    isMe ? 'ring-2 ring-zinc-500' : ''
+                  }`}>
+                  <div className="flex flex-col items-start">
+                    <span className={`text-sm uppercase tracking-wider font-bold ${isObserverSlot ? 'text-violet-300' : 'text-zinc-200'}`} style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+                      {isObserverSlot ? '👁️' : '⚔️'} {getSlotLabel(slotNum)} {isMe ? '(YOU)' : ''}
+                    </span>
+                    {hasPlayer && playerNames && playerNames[pid] && (
+                      <span className="text-xs text-zinc-400 font-mono mt-0.5">{playerNames[pid]}</span>
+                    )}
+                  </div>
+                  <span className={`text-xs uppercase tracking-wider ${status.ready ? 'text-green-600' : 'text-zinc-600'}`} style={{ fontFamily: 'Courier New, monospace' }}>
+                    {hasPlayer ? status.text : (canSelect ? '⊕ CLICK TO JOIN' : status.text)}
                   </span>
-                  <span className={`text-xs uppercase tracking-wider ${playerReady ? 'text-green-600' : 'text-zinc-600'}`} style={{ fontFamily: 'Courier New, monospace' }}>
-                    {hasPlayer ? (playerReady ? '✓ READY' : '⏳ STANDBY') : '⏳ WAITING...'}
-                  </span>
-                </div>
+                </button>
               );
             })}
           </div>
 
-          <div className="flex-1"></div>
-
           <div className="mt-auto">
-            <button
-              onClick={handleToggleReady}
-              disabled={connectionStatus !== 'connected' || players.filter(p => p).length < 2}
-              className={`w-full px-6 py-3 text-lg font-bold rounded-sm border-2 shadow-[0_4px_12px_rgba(0,0,0,0.8)] mb-3 uppercase tracking-wider transition-all ${
-                myReady
-                  ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                  : 'bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black text-zinc-100 hover:text-white border-zinc-600 hover:border-red-700 shadow-[0_4px_12px_rgba(0,0,0,0.8),0_0_15px_rgba(161,161,170,0.3),inset_0_1px_0_rgba(161,161,170,0.2)] hover:shadow-[0_4px_20px_rgba(220,38,38,0.8),0_0_30px_rgba(220,38,38,0.5),inset_0_1px_0_rgba(239,68,68,0.3)]'
-              } disabled:opacity-50`}
-              style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
-              {myReady ? '✓ READY' : 'READY UP'}
-            </button>
-
-            {playerId === 1 && (
+            {!isObserver && mySlot && (
               <button
-                onClick={handleStart}
+                onClick={handleToggleReady}
+                disabled={connectionStatus !== 'connected' || playerCount < maxPlayers}
+                className={`w-full px-6 py-3 text-lg font-bold rounded-sm border-2 shadow-[0_4px_12px_rgba(0,0,0,0.8)] mb-3 uppercase tracking-wider transition-all ${
+                  myReady
+                    ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                    : 'bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black text-zinc-100 hover:text-white border-zinc-600 hover:border-red-700 shadow-[0_4px_12px_rgba(0,0,0,0.8),0_0_15px_rgba(161,161,170,0.3),inset_0_1px_0_rgba(161,161,170,0.2)] hover:shadow-[0_4px_20px_rgba(220,38,38,0.8),0_0_30px_rgba(220,38,38,0.5),inset_0_1px_0_rgba(239,68,68,0.3)]'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+                {myReady ? '✓ READY' : 'READY UP'}
+              </button>
+            )}
+
+            {isObserver && (
+              <div className="w-full px-6 py-3 bg-violet-900/30 text-violet-300 text-base font-bold rounded-sm border-2 border-violet-700/50 mb-3 uppercase tracking-wider" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+                👁️ OBSERVER MODE
+                <div className="text-xs text-violet-400 mt-1 normal-case tracking-normal font-mono">
+                  Omniscience enabled
+                </div>
+              </div>
+            )}
+
+            {!mySlot && connectionStatus === 'connected' && (
+              <div className="w-full px-6 py-3 bg-zinc-900/50 text-zinc-500 text-base font-bold rounded-sm border-2 border-zinc-800 mb-3 uppercase tracking-wider" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+                ⊕ SELECT A SLOT ABOVE
+              </div>
+            )}
+
+            {canStart && (
+              <button
+                onClick={onStart}
                 disabled={!isReady}
-                className="w-full px-6 py-3 bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black text-zinc-100 hover:text-white text-lg font-bold rounded-sm border-2 border-zinc-600 hover:border-red-700 disabled:opacity-50 shadow-[0_4px_12px_rgba(0,0,0,0.8),0_0_15px_rgba(161,161,170,0.3),inset_0_1px_0_rgba(161,161,170,0.2)] hover:shadow-[0_4px_20px_rgba(220,38,38,0.8),0_0_30px_rgba(220,38,38,0.5),inset_0_1px_0_rgba(239,68,68,0.3)] uppercase tracking-wider transition-all"
+                className="w-full px-6 py-3 bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black text-zinc-100 hover:text-white text-lg font-bold rounded-sm border-2 border-zinc-600 hover:border-red-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_12px_rgba(0,0,0,0.8),0_0_15px_rgba(161,161,170,0.3),inset_0_1px_0_rgba(161,161,170,0.2)] hover:shadow-[0_4px_20px_rgba(220,38,38,0.8),0_0_30px_rgba(220,38,38,0.5),inset_0_1px_0_rgba(239,68,68,0.3)] uppercase tracking-wider transition-all"
                 style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
                 ⚔ START BATTLE
               </button>

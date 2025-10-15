@@ -643,7 +643,7 @@ export default function GameController() {
     }
   };
 
-  const createRoom = (serverUrl = null) => {
+  const createRoom = (serverUrl = null, roomType = '2player') => {
     const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     setRoomId(newRoomId);
     setSelectedServerUrl(serverUrl);
@@ -652,6 +652,7 @@ export default function GameController() {
     setIsRoomReady(false);
     setMyReadyState(false);
     setOpponentReadyState(false);
+    WebSocketManager.createRoom(roomType, serverUrl);
     setScreen('room');
   };
 
