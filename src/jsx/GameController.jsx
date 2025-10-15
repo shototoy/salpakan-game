@@ -108,74 +108,78 @@ export default function GameController() {
 
   useEffect(() => {
     if ((screen === 'room' || screen === 'onlineGame')) {
-      const handleRoomCreated = (data) => {
-        console.log('Room created:', data);
-        const createdRoomId = data.roomId;
-        setRoomId(createdRoomId);
-        setRoomType(data.roomType);
-        
-        if (WebSocketManager.ws && WebSocketManager.ws.readyState === WebSocket.OPEN) {
-          console.log('Auto-joining created room:', createdRoomId);
-          WebSocketManager.send({
-            type: 'join',
-            roomId: createdRoomId,
-            playerId: null
-          });
-        }
-      };
+    const handleRoomCreated = (data) => {
+      console.log('Room created:', data);
+      const createdRoomId = data.roomId;
+      const creatorPlayerId = data.playerId;
+      
+      setRoomId(createdRoomId);
+      setRoomType(data.roomType);
+      
+      playerIdRef.current = creatorPlayerId;
+      setPlayerId(creatorPlayerId);
+      setPlayers(data.players || {});
+      setPlayerNames(data.playerNames || {});
+      setMyReadyState(false);
+      setOpponentReadyState(false);
+      setIsRoomReady(false);
+      setConnectionStatus('connected');
+      
+      console.log('Room creator assigned playerId:', creatorPlayerId);
+    };
 
-      const handleRoomJoined = (data) => {
-        console.log('Room joined event received:', data);
+    const handleRoomJoined = (data) => {
+      console.log('Room joined event received:', data);
+      
+      if (!playerIdRef.current) {
         const myId = data.playerId;
         playerIdRef.current = myId;
         setPlayerId(myId);
-        
-        setPlayers(data.players || {});
-        setConnectionStatus('connected');
-        
-        if (data.roomType) {
-          setRoomType(data.roomType);
+      }
+      
+      setPlayers(data.players || {});
+      setConnectionStatus('connected');
+      
+      if (data.roomType) {
+        setRoomType(data.roomType);
+      }
+      
+      if (data.playerNames) {
+        setPlayerNames(data.playerNames);
+      }
+      
+      const myId = playerIdRef.current;
+      const myReady = data.readyStates?.[myId] || false;
+      
+      let oppReady = false;
+      Object.keys(data.players).forEach(pid => {
+        if (parseInt(pid) !== myId) {
+          oppReady = oppReady || (data.readyStates?.[pid] || false);
         }
-        
-        if (data.playerNames) {
-          setPlayerNames(data.playerNames);
-        }
-        
-        const myReady = data.readyStates?.[myId] || false;
-        
-        let oppReady = false;
-        Object.keys(data.players).forEach(pid => {
-          if (parseInt(pid) !== myId) {
-            oppReady = oppReady || (data.readyStates?.[pid] || false);
-          }
-        });
-        
-        setMyReadyState(myReady);
-        setOpponentReadyState(oppReady);
-        setIsRoomReady(data.readyStates && Object.values(data.readyStates).every(r => r));
-      };
+      });
+      
+      setMyReadyState(myReady);
+      setOpponentReadyState(oppReady);
+      setIsRoomReady(data.readyStates && Object.values(data.readyStates).every(r => r));
+    };
 
       const handlePlayerJoined = (data) => {
-        setPlayers(data.players || {});
-        setPlayerNames(data.playerNames || {});
-        
-        const currentPlayerId = playerIdRef.current;
-        if (data.readyStates && currentPlayerId) {
-          const myReady = data.readyStates[currentPlayerId] || false;
-          
-          let oppReady = false;
-          Object.keys(data.players).forEach(pid => {
-            if (parseInt(pid) !== currentPlayerId) {
-              oppReady = oppReady || (data.readyStates[pid] || false);
-            }
-          });
-          
-          setMyReadyState(myReady);
-          setOpponentReadyState(oppReady);
-          setIsRoomReady(data.readyStates && Object.values(data.readyStates).every(r => r));
-        }
-      };
-
+      setPlayers(data.players || {});
+      setPlayerNames(data.playerNames || {});
+      setConnectionStatus('connected');
+      const currentPlayerId = playerIdRef.current;
+      if (currentPlayerId && data.readyStates) {
+        const myReady = data.readyStates[currentPlayerId] || false;
+        setMyReadyState(myReady);
+        let oppReady = false;
+        Object.keys(data.players).forEach(pid => {
+          if (parseInt(pid) !== currentPlayerId) {
+            oppReady = oppReady || (data.readyStates[pid] || false);
+          }
+        });
+        setOpponentReadyState(oppReady);
+      }
+    };
       const handleSlotSelected = (data) => {
         setPlayers(data.players || {});
         setPlayerNames(data.playerNames || {});
@@ -331,9 +335,9 @@ export default function GameController() {
       if (screen === 'room' && roomId) {
         const needsConnection = !WebSocketManager.ws || 
                               WebSocketManager.ws.readyState !== WebSocket.OPEN ||
-                              (WebSocketManager.currentRoomId && WebSocketManager.currentRoomId !== roomId);
+                              WebSocketManager.currentRoomId !== roomId;
         
-        if (needsConnection) {
+        if (needsConnection && !playerIdRef.current) {
           console.log('Connecting to room:', roomId);
           WebSocketManager.connect(roomId, null, selectedServerUrl);
         }
@@ -481,8 +485,17 @@ export default function GameController() {
   };
 
   const confirmTurn = () => {
+    const isObserver = setupPlayer === 3;
+    
     if (showBattleReport) {
       setShowBattleReport(false);
+      
+      if (isObserver) {
+        setShowingBattleForPlayer(null);
+        setBattleResult(null);
+        setShowTurnLock(false);
+        return;
+      }
       
       if (multiplayerMode === 'local') {
         if (showingBattleForPlayer && turn === showingBattleForPlayer && showingBattleForPlayer === battleResult.player) {
@@ -584,6 +597,9 @@ export default function GameController() {
   // ============================================
 
   const handlePlayClick = (r, c) => {
+    const isObserver = setupPlayer === 3;
+    if (isObserver) return; // Observers can't play
+    
     const modeHandler = mode === 'ai' ? GameModes.ai : (multiplayerMode === 'online' ? GameModes.online : GameModes.local);
     
     if (!modeHandler.canMove(turn, playerId)) return;
@@ -691,6 +707,10 @@ export default function GameController() {
           }
           setDefeated(newDefeated);
           setBattleResult(newBattleResult);
+          if (!isObserver) {
+            setShowBattleReport(true);
+            setShowingBattleForPlayer(turn);
+          }
         } else {
           nb[r][c] = attacker;
           nb[sr][sc] = null;
@@ -788,6 +808,8 @@ export default function GameController() {
     setOpponentReadyState(false);
     setPlayerNames({});
     setRoomId('');
+    setPlayerId(null);
+    playerIdRef.current = null;
     setScreen('room');
     WebSocketManager.createRoom(roomType, serverUrl);
   };
@@ -902,6 +924,7 @@ export default function GameController() {
               opponentLastSelected={opponentLastSelected}
               flaggedPiece={flaggedPiece}
               useSVG={useSVG}
+              omniscience={omniscience}
               onCellClick={handleCellClick}
               onCellPress={handleCellPress}
               onCellRelease={handleCellRelease}

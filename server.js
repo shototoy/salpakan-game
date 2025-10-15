@@ -437,7 +437,7 @@ function handleCreateRoom(ws, data) {
   const { roomType = '2player' } = data;
   const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
   
-  rooms.set(roomId, {
+  const room = {
     roomType,
     players: {},
     clients: new Map(),
@@ -446,19 +446,31 @@ function handleCreateRoom(ws, data) {
     playerNames: {},
     gameStarted: false,
     lastActivity: Date.now()
-  });
+  };
   
-  console.log(`🆕 Room ${roomId} (${roomType})`);
+  rooms.set(roomId, room);
+  
+  let playerId = 1;
+  room.clients.set(playerId, ws);
+  ws.roomId = roomId;
+  ws.playerId = playerId;
+  ws.isAlive = true;
+  
+  console.log(`🆕 Room ${roomId} (${roomType}) - Creator P${playerId}`);
   
   ws.send(JSON.stringify({
     type: 'roomCreated',
     roomId,
-    roomType
+    roomType,
+    playerId,
+    players: room.players,
+    readyStates: room.readyStates,
+    playerNames: room.playerNames
   }));
 }
 
 function handleJoin(ws, data) {
-  const { roomId } = data;
+  const { roomId, playerId: requestedPlayerId } = data;
   
   if (!rooms.has(roomId)) {
     ws.send(JSON.stringify({ type: 'error', message: 'Room not found' }));
@@ -468,8 +480,23 @@ function handleJoin(ws, data) {
   const room = rooms.get(roomId);
   room.lastActivity = Date.now();
   
+  if (ws.playerId && ws.roomId === roomId) {
+    console.log(`♻️ Player ${ws.playerId} reconnecting to ${roomId}`);
+    ws.send(JSON.stringify({
+      type: 'roomJoined',
+      roomId,
+      playerId: ws.playerId,
+      players: room.players,
+      readyStates: room.readyStates,
+      roomType: room.roomType,
+      playerNames: room.playerNames,
+      gameStarted: room.gameStarted || false
+    }));
+    return;
+  }
+  
   let playerId = 1;
-  const existingIds = Object.keys(room.players).map(Number);
+  const existingIds = Array.from(room.clients.keys());
   while (existingIds.includes(playerId)) {
     playerId++;
   }

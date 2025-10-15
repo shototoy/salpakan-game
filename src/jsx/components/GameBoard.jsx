@@ -1,13 +1,9 @@
-// ============================================
-// jsx/components/GameBoard.jsx
-// ============================================
-
 import React from 'react';
 import PieceIcon from './PieceIcon.jsx';
 
 export default function GameBoard({ 
   board, phase, mode, multiplayerMode, turn, setupPlayer, sel, moves, lastMove, 
-  devMode, playerId, opponentLastSelected, flaggedPiece, useSVG,
+  devMode, playerId, opponentLastSelected, flaggedPiece, useSVG, omniscience,
   onCellClick, onCellPress, onCellRelease, GameModes, RANKS 
 }) {
   const modeHandler = mode === 'ai' ? GameModes.ai : (multiplayerMode === 'online' ? GameModes.online : GameModes.local);
@@ -34,9 +30,10 @@ export default function GameBoard({
       }
 
       const isFlagged = flaggedPiece?.[0] === actualR && flaggedPiece?.[1] === actualC; 
+      
       const canSee = phase === 'setup'
         ? (cell?.p === (multiplayerMode === 'online' ? playerId : setupPlayer) || devMode || !cell)
-        : modeHandler.shouldShowPiece(cell, turn, playerId, devMode);
+        : (omniscience || devMode || modeHandler.shouldShowPiece(cell, turn, playerId, devMode));
 
       cells.push(
         <div
