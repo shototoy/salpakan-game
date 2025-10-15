@@ -1,13 +1,13 @@
 {
   "files": {
-    "main.css": "/salpakan-game/static/css/main.1220c162.css",
-    "main.js": "/salpakan-game/static/js/main.aa4dd4c9.js",
+    "main.css": "/salpakan-game/static/css/main.73a0bad7.css",
+    "main.js": "/salpakan-game/static/js/main.82eb8f00.js",
     "index.html": "/salpakan-game/index.html",
-    "main.1220c162.css.map": "/salpakan-game/static/css/main.1220c162.css.map",
-    "main.aa4dd4c9.js.map": "/salpakan-game/static/js/main.aa4dd4c9.js.map"
+    "main.73a0bad7.css.map": "/salpakan-game/static/css/main.73a0bad7.css.map",
+    "main.82eb8f00.js.map": "/salpakan-game/static/js/main.82eb8f00.js.map"
   },
   "entrypoints": [
-    "static/css/main.1220c162.css",
-    "static/js/main.aa4dd4c9.js"
+    "static/css/main.73a0bad7.css",
+    "static/js/main.82eb8f00.js"
   ]
 }
