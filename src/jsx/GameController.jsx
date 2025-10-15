@@ -311,8 +311,23 @@ export default function GameController() {
       return;
     }
 
+    const currentPlayer = multiplayerMode === 'online' ? playerId : setupPlayer;
+    const piecesOnBoard = board.flat().filter(cell => cell && cell.p === currentPlayer).length;
+    if (piecesOnBoard !== 21) {
+      setMsg('Deploy All 21 Units!');
+      return;
+    }
+
     if (mode === 'ai') {
-      const nb = GameLogic.autoSetup(board, 2);
+      const clearedBoard = board.map((row, r) => 
+        row.map((cell, c) => {
+          if (cell && cell.p === 2) {
+            return null;
+          }
+          return cell;
+        })
+      );
+      const nb = GameLogic.autoSetup(clearedBoard, 2);
       setBoard(nb);
       setPhase('playing');
       setTurn(1);
@@ -492,12 +507,56 @@ export default function GameController() {
             nb[sr][sc] = null;
             newDefeated[attacker.p] = [...newDefeated[attacker.p], attacker.r];
             newBattleResult = { attacker: attacker.r, defender: defender.r, result: 'lose', player: turn };
+            
+            if (attacker.r === 'FLAG') {
+              setBoard(nb);
+              setMoves([]);
+              setSel(null);
+              setDefeated(newDefeated);
+              setPhase('ended');
+              const loser = turn;
+              const winner = turn === 1 ? 2 : 1;
+              setVictoryData({ winner, victoryType: 'flag_defeated' });
+              setShowVictory(true);
+              if (multiplayerMode === 'online') {
+                WebSocketManager.send({
+                  type: 'gameEnd',
+                  roomId,
+                  winner,
+                  victoryType: 'flag_defeated',
+                  message: `Victory - Commander ${winner}! Enemy flag destroyed.`
+                });
+              }
+              return;
+            }
           } else {
             nb[r][c] = null;
             nb[sr][sc] = null;
             newDefeated[attacker.p] = [...newDefeated[attacker.p], attacker.r];
             newDefeated[defender.p] = [...newDefeated[defender.p], defender.r];
             newBattleResult = { attacker: attacker.r, defender: defender.r, result: 'draw', player: turn };
+            
+            if (attacker.r === 'FLAG' || defender.r === 'FLAG') {
+              setBoard(nb);
+              setMoves([]);
+              setSel(null);
+              setDefeated(newDefeated);
+              setPhase('ended');
+              const loser = turn;
+              const winner = turn === 1 ? 2 : 1;
+              setVictoryData({ winner, victoryType: 'flag_defeated' });
+              setShowVictory(true);
+              if (multiplayerMode === 'online') {
+                WebSocketManager.send({
+                  type: 'gameEnd',
+                  roomId,
+                  winner,
+                  victoryType: 'flag_defeated',
+                  message: `Victory - Commander ${winner}! Enemy flag destroyed.`
+                });
+              }
+              return;
+            }
           }
           setDefeated(newDefeated);
           setBattleResult(newBattleResult);
@@ -556,9 +615,19 @@ export default function GameController() {
 
   const handleAutoSetup = () => {
     const currentPlayer = multiplayerMode === 'online' ? playerId : setupPlayer;
-    const freshBoard = board.map(row => [...row]);
-    const nb = GameLogic.autoSetup(freshBoard, currentPlayer);
+    
+    const clearedBoard = board.map((row, r) => 
+      row.map((cell, c) => {
+        if (cell && cell.p === currentPlayer) {
+          return null;
+        }
+        return cell;
+      })
+    );
+    
+    const nb = GameLogic.autoSetup(clearedBoard, currentPlayer);
     setBoard(nb);
+    
     const inv = {};
     RANKS.forEach(({ r }) => { inv[r] = 0; });
     setInventory(inv);
