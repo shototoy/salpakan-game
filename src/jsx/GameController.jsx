@@ -60,6 +60,10 @@ export default function GameController() {
   const [roomType, setRoomType] = useState('2player');
   const [playerNames, setPlayerNames] = useState({});
 
+  // ============================================
+  // SLOT & NAME MANAGEMENT
+  // ============================================
+
   const selectSlot = (slotNum) => {
     WebSocketManager.send({
       type: 'selectSlot',
@@ -77,6 +81,10 @@ export default function GameController() {
       name
     });
   };
+
+  // ============================================
+  // ROOM LIST FETCHING
+  // ============================================
   
   useEffect(() => {
     if (screen === 'multiplayer') {
@@ -94,26 +102,47 @@ export default function GameController() {
     }
   }, [screen]);
 
+  // ============================================
+  // WEBSOCKET HANDLERS
+  // ============================================
+
   useEffect(() => {
-    if ((screen === 'room' || screen === 'onlineGame') && roomId) {
+    if ((screen === 'room' || screen === 'onlineGame')) {
+      const handleRoomCreated = (data) => {
+        console.log('Room created:', data);
+        const createdRoomId = data.roomId;
+        setRoomId(createdRoomId);
+        setRoomType(data.roomType);
+        
+        if (WebSocketManager.ws && WebSocketManager.ws.readyState === WebSocket.OPEN) {
+          console.log('Auto-joining created room:', createdRoomId);
+          WebSocketManager.send({
+            type: 'join',
+            roomId: createdRoomId,
+            playerId: null
+          });
+        }
+      };
+
       const handleRoomJoined = (data) => {
+        console.log('Room joined event received:', data);
         const myId = data.playerId;
         playerIdRef.current = myId;
         setPlayerId(myId);
         
-        // Store players as object {playerId: slotNum}
         setPlayers(data.players || {});
         setConnectionStatus('connected');
-        setRoomType(data.roomType);
         
-        // Set player names
+        if (data.roomType) {
+          setRoomType(data.roomType);
+        }
+        
         if (data.playerNames) {
           setPlayerNames(data.playerNames);
         }
         
         const myReady = data.readyStates?.[myId] || false;
         
-        // Calculate opponent ready state
         let oppReady = false;
         Object.keys(data.players).forEach(pid => {
           if (parseInt(pid) !== myId) {
@@ -124,12 +153,6 @@ export default function GameController() {
         setMyReadyState(myReady);
         setOpponentReadyState(oppReady);
         setIsRoomReady(data.readyStates && Object.values(data.readyStates).every(r => r));
-      };
-
-      const handleRoomCreated = (data) => {
-        setRoomId(data.roomId);
-        setRoomType(data.roomType);
-        setScreen('room');
       };
 
       const handlePlayerJoined = (data) => {
@@ -193,11 +216,21 @@ export default function GameController() {
           
           setMyReadyState(myReady);
           setOpponentReadyState(oppReady);
-          setIsRoomReady(data.allReady === true);
         }
       };
 
       const handleGameStart = () => {
+        const mySlot = players && players[playerIdRef.current];
+        const isObserver = roomType === '3player' && mySlot === 3;
+        
+        if (isObserver) {
+          setScreen('onlineGame');
+          setPhase('playing');
+          setOmniscience(true);
+          setMsg('Observing Battle');
+          return;
+        }
+        
         setMode('2player');
         setMultiplayerMode('online');
         setBoard(GameLogic.initBoard());
@@ -208,6 +241,13 @@ export default function GameController() {
         setPhase('setup');
         setMsg('Deploy Your Forces');
         setScreen('onlineGame');
+      };
+      
+      const handleWatchGame = (data) => {
+        setScreen('onlineGame');
+        setPhase('playing');
+        setOmniscience(true);
+        setMsg('Observing Battle');
       };
 
       const handleOpponentDeploymentUpdate = (data) => {
@@ -274,6 +314,7 @@ export default function GameController() {
       };
 
       WebSocketManager.on('roomCreated', handleRoomCreated);
+      WebSocketManager.on('createRoom', handleRoomCreated);
       WebSocketManager.on('roomJoined', handleRoomJoined);
       WebSocketManager.on('playerJoined', handlePlayerJoined);
       WebSocketManager.on('slotSelected', handleSlotSelected);
@@ -285,13 +326,15 @@ export default function GameController() {
       WebSocketManager.on('bothPlayersReady', handleBothPlayersReady);
       WebSocketManager.on('move', handleMove);
       WebSocketManager.on('gameEnd', handleGameEnd);
+      WebSocketManager.on('watchGame', handleWatchGame);
 
-      if (screen === 'room') {
+      if (screen === 'room' && roomId) {
         const needsConnection = !WebSocketManager.ws || 
                               WebSocketManager.ws.readyState !== WebSocket.OPEN ||
-                              WebSocketManager.currentRoomId !== roomId;
+                              (WebSocketManager.currentRoomId && WebSocketManager.currentRoomId !== roomId);
         
         if (needsConnection) {
+          console.log('Connecting to room:', roomId);
           WebSocketManager.connect(roomId, null, selectedServerUrl);
         }
       }
@@ -299,6 +342,7 @@ export default function GameController() {
       return () => {
         if (screen !== 'room' && screen !== 'onlineGame') {
           WebSocketManager.off('roomCreated');
+          WebSocketManager.off('createRoom');
           WebSocketManager.off('roomJoined');
           WebSocketManager.off('playerJoined');
           WebSocketManager.off('slotSelected');
@@ -310,11 +354,16 @@ export default function GameController() {
           WebSocketManager.off('bothPlayersReady');
           WebSocketManager.off('move');
           WebSocketManager.off('gameEnd');
+          WebSocketManager.off('watchGame');
           WebSocketManager.disconnect();
         }
       };
     }
   }, [screen, roomId, selectedServerUrl]);
+
+  // ============================================
+  // CELL INTERACTION
+  // ============================================
 
   const handleCellPress = (r, c) => {
     if (phase !== 'playing') return;
@@ -332,6 +381,10 @@ export default function GameController() {
       longPressTimer.current = null;
     }
   };
+
+  // ============================================
+  // GAME RESET
+  // ============================================
 
   const resetGame = useCallback(() => {
     setScreen('home');
@@ -360,6 +413,10 @@ export default function GameController() {
     setVictoryData(null);
     WebSocketManager.disconnect();
   }, []);
+
+  // ============================================
+  // SETUP PHASE
+  // ============================================
 
   const startSetup = (m, mp = null) => {
     setMode(m);
@@ -521,6 +578,10 @@ export default function GameController() {
       setShowPicker([r, c]);
     }
   };
+
+  // ============================================
+  // PLAYING PHASE
+  // ============================================
 
   const handlePlayClick = (r, c) => {
     const modeHandler = mode === 'ai' ? GameModes.ai : (multiplayerMode === 'online' ? GameModes.online : GameModes.local);
@@ -713,6 +774,10 @@ export default function GameController() {
     }
   };
 
+  // ============================================
+  // MULTIPLAYER ROOM MANAGEMENT
+  // ============================================
+
   const createRoom = (serverUrl = null, roomType = '2player') => {
     setSelectedServerUrl(serverUrl);
     setConnectionStatus('connecting');
@@ -722,6 +787,8 @@ export default function GameController() {
     setMyReadyState(false);
     setOpponentReadyState(false);
     setPlayerNames({});
+    setRoomId('');
+    setScreen('room');
     WebSocketManager.createRoom(roomType, serverUrl);
   };
 
@@ -736,6 +803,7 @@ export default function GameController() {
     setPlayerNames({});
     setScreen('room');
   };
+
   const toggleReady = () => {
     const newReadyState = !myReadyState;
     const currentPlayerId = playerIdRef.current || playerId;
@@ -759,6 +827,10 @@ export default function GameController() {
       roomId
     });
   };
+
+  // ============================================
+  // RENDER SCREENS
+  // ============================================
 
   if (screen === 'home') {
     return <HomeScreen 

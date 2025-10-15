@@ -10,7 +10,7 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
   const [showServerSelect, setShowServerSelect] = useState(false);
   const [showRoomConfig, setShowRoomConfig] = useState(false);
   const [selectedServer, setSelectedServer] = useState(null);
-  const [roomType, setRoomType] = useState('2player'); // '2player' or '3player'
+  const [roomType, setRoomType] = useState('2player');
   const [availableRooms, setAvailableRooms] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [enabledServers, setEnabledServers] = useState([]);
@@ -21,10 +21,6 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
     const interval = setInterval(fetchAllRooms, 2000);
     return () => clearInterval(interval);
   }, []);
-
-  // ============================================
-  // SERVER MANAGEMENT
-  // ============================================
 
   const loadEnabledServers = () => {
     const servers = WebSocketManager.getEnabledServers();
@@ -37,10 +33,6 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
     }, []);
     setEnabledServers(uniqueServers);
   };
-
-  // ============================================
-  // ROOM MANAGEMENT
-  // ============================================
 
   const fetchAllRooms = async () => {
     setIsLoading(true);
@@ -96,10 +88,6 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
     setShowRoomConfig(true);
   };
 
-  // ============================================
-  // UI HELPERS
-  // ============================================
-
   const getServerTypeInfo = (server) => {
     if (server.type === 'cloud') {
       return { emoji: '☁️', label: 'CLOUD', color: 'from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black border-zinc-600 hover:border-red-700' };
@@ -109,10 +97,6 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
       return { emoji: '🔧', label: 'CUSTOM', color: 'from-zinc-700 via-zinc-800 to-zinc-900 hover:from-red-950 hover:via-red-900 hover:to-black border-zinc-600 hover:border-red-700' };
     }
   };
-
-  // ============================================
-  // RENDER
-  // ============================================
 
   return (
     <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-black via-zinc-950 to-zinc-900 p-4">
@@ -230,6 +214,7 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                         const maxPlayers = room.roomType === '3player' ? 3 : 2;
                         const roomTypeIcon = room.roomType === '3player' ? '👁️' : '⚔️';
                         const roomTypeLabel = room.roomType === '3player' ? '3P' : '1V1';
+                        const gameStatus = room.gameStarted ? '🎮 LIVE' : '⏳ LOBBY';
                         return (
                           <button 
                             key={`${room.serverUrl}-${room.id}-${idx}`} 
@@ -241,7 +226,10 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                                 <span className="text-[10px] px-2 py-0.5 rounded-sm whitespace-nowrap bg-zinc-800 text-zinc-400 uppercase tracking-wider" style={{ fontFamily: 'Courier New, monospace' }}>
                                   {info.emoji} {room.server}
                                 </span>
-                                <span className="text-xs text-zinc-600 mt-1">{room.players}/{maxPlayers} {roomTypeLabel}</span>
+                                <div className="flex gap-1 mt-1">
+                                  <span className="text-xs text-zinc-600">{room.players}/{maxPlayers} {roomTypeLabel}</span>
+                                  <span className="text-[10px] text-zinc-500">{gameStatus}</span>
+                                </div>
                               </div>
                             </div>
                           </button>

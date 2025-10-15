@@ -1,7 +1,3 @@
-// ============================================
-// jsx/components/Sidebar.jsx
-// ============================================
-
 import React from 'react';
 
 export default function Sidebar({
@@ -65,23 +61,25 @@ export default function Sidebar({
               </button>
             </div>
 
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-300 text-xs lg:text-sm font-bold uppercase tracking-wider" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
-                Omniscience
-              </span>
-              <button
-                onClick={() => setOmniscience && setOmniscience(!omniscience)}
-                className={`relative w-12 h-6 rounded-sm border-2 transition-all ${
-                  omniscience 
-                    ? 'bg-violet-800 border-violet-600' 
-                    : 'bg-zinc-800 border-zinc-700'
-                }`}
-              >
-                <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-zinc-100 rounded-sm transition-transform ${
-                  omniscience ? 'translate-x-6' : 'translate-x-0'
-                }`}></div>
-              </button>
-            </div>
+            {mode === 'ai' && (
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-300 text-xs lg:text-sm font-bold uppercase tracking-wider" style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+                  Omniscience
+                </span>
+                <button
+                  onClick={() => setOmniscience && setOmniscience(!omniscience)}
+                  className={`relative w-12 h-6 rounded-sm border-2 transition-all ${
+                    omniscience 
+                      ? 'bg-violet-800 border-violet-600' 
+                      : 'bg-zinc-800 border-zinc-700'
+                  }`}
+                >
+                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-zinc-100 rounded-sm transition-transform ${
+                    omniscience ? 'translate-x-6' : 'translate-x-0'
+                  }`}></div>
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
