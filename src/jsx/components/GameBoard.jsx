@@ -10,8 +10,6 @@ export default function GameBoard({
   devMode, playerId, opponentLastSelected, flaggedPiece, useSVG,
   onCellClick, onCellPress, onCellRelease, GameModes, RANKS 
 }) {
-  console.log('GameBoard render - useSVG:', useSVG);
-  
   const modeHandler = mode === 'ai' ? GameModes.ai : (multiplayerMode === 'online' ? GameModes.online : GameModes.local);
   const perspective = modeHandler.getBoardPerspective(phase, turn, setupPlayer, playerId);
 
