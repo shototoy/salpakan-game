@@ -44,10 +44,6 @@ export default function RoomWaiting({ roomId, onLeave, onStart, onToggleReady, p
           <button onClick={handleLeave} className="mb-4 text-zinc-500 hover:text-zinc-300 text-xs uppercase tracking-wider self-start" style={{ fontFamily: 'Courier New, monospace' }}>
             ← RETURN
           </button>
-
-          <div className="text-4xl mb-4 filter drop-shadow-[0_0_10px_rgba(139,0,0,0.5)]">🎮</div>
-          <h2 className="text-2xl font-black text-zinc-300 mb-4 tracking-widest uppercase" style={{ fontFamily: 'Impact, "Arial Black", sans-serif', textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>BATTLEROOM</h2>
-
           <div className="bg-black rounded-sm p-6 mb-6 border-2 border-zinc-800">
             <p className="text-zinc-500 text-xs mb-2 uppercase tracking-widest" style={{ fontFamily: 'Courier New, monospace' }}>ROOM ID</p>
             <p className="text-zinc-300 text-4xl font-mono font-bold tracking-wider">{roomId}</p>

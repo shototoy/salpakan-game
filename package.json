@@ -2,7 +2,7 @@
   "name": "salpakan-game",
   "version": "0.2.0",
   "private": true,
-  "__homepage": "https://shototoy.github.io/salpakan-game",
+  "homepage": "https://shototoy.github.io/salpakan-game",
   "dependencies": {
     "@capacitor/android": "^7.4.3",
     "@capacitor/cli": "^7.4.3",
