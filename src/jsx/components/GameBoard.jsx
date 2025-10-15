@@ -48,15 +48,15 @@ export default function GameBoard({
           onTouchStart={() => onCellPress(actualR, actualC)}
           onTouchEnd={onCellRelease}
           className={`flex items-center justify-center cursor-pointer transition-all ${
-            isSelected ? 'bg-gradient-to-br from-amber-400 to-amber-500 shadow-[inset_0_0_15px_rgba(251,191,36,0.4)]' :
-            isFlagged ? 'bg-gradient-to-br from-violet-400 to-violet-500 shadow-[inset_0_0_15px_rgba(167,139,250,0.4)]' :
-            isOpponentSelected ? 'bg-gradient-to-br from-orange-400 to-orange-500 shadow-[inset_0_0_15px_rgba(251,146,60,0.4)]' :
-            isValidMove ? 'bg-gradient-to-br from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400' :
-            (isLastMoveFrom || isLastMoveTo) ? 'bg-gradient-to-br from-rose-400 to-rose-500 hover:from-rose-300 hover:to-rose-400' :
+            isSelected ? 'bg-gradient-to-br from-amber-600 to-amber-700 shadow-[inset_0_0_15px_rgba(217,119,6,0.6),0_0_10px_rgba(217,119,6,0.4)]' :
+            isFlagged ? 'bg-gradient-to-br from-violet-700 to-violet-800 shadow-[inset_0_0_15px_rgba(109,40,217,0.6),0_0_10px_rgba(109,40,217,0.4)]' :
+            isOpponentSelected ? 'bg-gradient-to-br from-orange-600 to-orange-700 shadow-[inset_0_0_15px_rgba(234,88,12,0.6),0_0_10px_rgba(234,88,12,0.4)]' :
+            isValidMove ? 'bg-gradient-to-br from-emerald-700 to-emerald-800 hover:from-emerald-600 hover:to-emerald-700 shadow-[inset_0_0_10px_rgba(4,120,87,0.5)]' :
+            (isLastMoveFrom || isLastMoveTo) ? 'bg-gradient-to-br from-red-800 to-red-900 hover:from-red-700 hover:to-red-800 shadow-[inset_0_0_15px_rgba(153,27,27,0.6),0_0_10px_rgba(220,38,38,0.4)]' :
             ((actualR + actualC) % 2 === 0) 
-              ? 'bg-gradient-to-br from-slate-100 to-slate-200 hover:from-slate-50 hover:to-slate-100' 
-              : 'bg-gradient-to-br from-slate-300 to-slate-400 hover:from-slate-250 hover:to-slate-350'
-          } border-[0.5px] border-slate-400/30`}
+              ? 'bg-gradient-to-br from-zinc-700 to-zinc-800 hover:from-zinc-600 hover:to-zinc-700 shadow-[inset_0_1px_0_rgba(161,161,170,0.1)]' 
+              : 'bg-gradient-to-br from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 shadow-[inset_0_1px_0_rgba(0,0,0,0.3)]'
+          } border-[0.5px] border-zinc-950/50`}
           style={{ flex: 1, aspectRatio: '1/1' }}
         >
           {cell ? (canSee ? (
