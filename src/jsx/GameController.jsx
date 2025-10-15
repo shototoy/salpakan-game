@@ -679,7 +679,7 @@ export default function GameController() {
     return (
       <div className="h-screen w-screen flex flex-col lg:flex-row bg-black overflow-hidden">
         <div className="order-1 flex-1 flex items-center justify-center p-1 md:p-2 bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 min-h-0">
-          <div className="w-full h-full max-w-[min(98vw,calc(98vh*1.125))] max-h-[min(98vw/1.125,98vh)] flex flex-col rounded-lg shadow-[0_0_40px_rgba(212,175,55,0.3)] overflow-hidden border-4 border-yellow-700">
+          <div className="w-full h-full max-w-[min(98vw,calc(98vh*1.125))] max-h-[min(98vw/1.125,98vh)] flex flex-col rounded-lg shadow-[0_0_40px_rgba(212,175,55,0.3)] overflow-hidden border-4 border-zinc-800">
             <GameBoard 
               board={board}
               phase={phase}

@@ -2,15 +2,43 @@
 // jsx/components/PieceIcon.jsx
 // ============================================
 
-import React, { useState } from 'react';
-import { TILESET_CONFIG } from '../../constants/config';
+import React, { useState, useEffect } from 'react';
 
-export default function PieceIcon({ rank, player, RANKS, isHidden }) {
-  const [hasError, setHasError] = useState(false);
+export default function PieceIcon({ rank, player, RANKS, isHidden, useSVG = false }) {
+  const [imageError, setImageError] = useState(false);
+  const [tilesetConfig, setTilesetConfig] = useState(null);
   
-  const rankData = isHidden ? { tileX: 0, tileY: 3 } : RANKS.find(r => r.r === rank);
+  useEffect(() => {
+    if (useSVG) {
+      const loadConfig = async () => {
+        try {
+          const config = await import('../../constants/config');
+          setTilesetConfig(config.TILESET_CONFIG);
+        } catch (e) {
+          console.log('Config not found, using text fallback');
+          setImageError(true);
+        }
+      };
+      loadConfig();
+    }
+  }, [useSVG]);
   
-  if (!rankData && !isHidden) return <span className="text-yellow-600 font-bold text-2xl">{rank}</span>;
+  const rankData = isHidden ? { tileX: 0, tileY: 3 } : RANKS?.find(r => r.r === rank);
+  
+  const shouldUseSVG = useSVG && tilesetConfig && !imageError && rankData;
+
+  if (!shouldUseSVG) {
+    return (
+      <div className={`w-full h-full flex items-center justify-center text-xs md:text-sm font-black ${
+        player === 2 
+          ? 'text-blue-300 bg-gradient-to-br from-blue-900 to-blue-950 border-blue-700' 
+          : 'text-red-300 bg-gradient-to-br from-red-900 to-red-950 border-red-700'
+      } rounded-sm border-2 uppercase tracking-wider shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]`} 
+      style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+        {isHidden ? '?' : rank}
+      </div>
+    );
+  }
 
   const { tileX, tileY } = rankData;
   const padding = 30;
@@ -18,16 +46,6 @@ export default function PieceIcon({ rank, player, RANKS, isHidden }) {
   const extractY = tileY * 200 + padding;
   const extractWidth = 240 - (padding * 2);
   const extractHeight = 200 - (padding * 2);
-
-  if (hasError) {
-    return (
-      <div className={`w-full h-full flex items-center justify-center text-xs md:text-sm font-bold font-serif ${
-        player === 2 ? 'text-blue-400 bg-blue-900' : 'text-yellow-400 bg-yellow-900'
-      } rounded border-2 ${player === 2 ? 'border-blue-600' : 'border-yellow-600'}`}>
-        {isHidden ? '?' : rank}
-      </div>
-    );
-  }
 
   return (
     <svg
@@ -39,13 +57,12 @@ export default function PieceIcon({ rank, player, RANKS, isHidden }) {
       }}
     >
       <image
-        href={TILESET_CONFIG.url}
-        width={TILESET_CONFIG.totalWidth}
-        height={TILESET_CONFIG.totalHeight}
+        href={tilesetConfig.url}
+        width={tilesetConfig.totalWidth}
+        height={tilesetConfig.totalHeight}
         style={{ imageRendering: 'crisp-edges' }}
-        onError={(e) => {
-          console.error('Image load error', e);
-          setHasError(true);
+        onError={() => {
+          setImageError(true);
         }}
       />
     </svg>
