@@ -1,0 +1,2 @@
+"use strict";(self.webpackChunksalpakan_game=self.webpackChunksalpakan_game||[]).push([[753],{753:(a,e,t)=>{t.d(e,{TILESET_CONFIG:()=>l});t(43);const l={url:t.p+"static/media/imperium.23bbe946aa42ff6938effb9cdd6b35ed.svg",cellWidth:240,cellHeight:200,columns:5,totalWidth:1200,totalHeight:800}}}]);
+//# sourceMappingURL=753.63e68742.chunk.js.map

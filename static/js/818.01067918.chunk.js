@@ -1,2 +1,0 @@
-"use strict";(self.webpackChunksalpakan_game=self.webpackChunksalpakan_game||[]).push([[818],{818:(a,e,s)=>{s.d(e,{TILESET_CONFIG:()=>l});const l={url:"./assets/imperium.svg",cellWidth:240,cellHeight:200,columns:5,totalWidth:1200,totalHeight:800}}}]);
-//# sourceMappingURL=818.01067918.chunk.js.map

@@ -1,0 +1,138 @@
+<svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="imperial-silver" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#e8e8e8;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#b0b0b0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#707070;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="blood-red" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b0000;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#660000;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3d0000;stop-opacity:1" />
+    </linearGradient>
+    <radialGradient id="skull-glow">
+      <stop offset="0%" style="stop-color:#ff0000;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#000000;stop-opacity:0" />
+    </radialGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.8"/>
+    </filter>
+    <polygon id="star" points="0,-10 2.9,-3.1 9.5,-3.1 4.8,1.5 6.9,8.1 0,4.5 -6.9,8.1 -4.8,1.5 -9.5,-3.1 -2.9,-3.1"/>
+  </defs>
+  <g transform="translate(120,100)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+    <path d="M 0,-40 L -28,3 L -17,3 L 0,-17 L 17,3 L 28,3 Z" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+  </g>
+  <g transform="translate(360,100)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+    <path d="M 0,-45 L -30,-10 L -18,-10 L 0,-28 L 18,-10 L 30,-10 Z" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+    <path d="M 0,-7 L -28,25 L -15,25 L 0,11 L 15,25 L 28,25 Z" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+  </g>
+  <g transform="translate(600,100)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+    <rect x="-17" y="-35" width="34" height="70" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+  </g>
+  <g transform="translate(840,100)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+    <rect x="-28" y="-35" width="22" height="70" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+    <rect x="6" y="-35" width="22" height="70" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+  </g>
+  <g transform="translate(1080,100)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+    <rect x="-31" y="-35" width="19" height="70" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+    <rect x="-4" y="-35" width="19" height="70" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+    <rect x="23" y="-35" width="19" height="70" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+  </g>
+  <g transform="translate(120,300)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+    <path d="M -25,21 Q -35,14 -31,0" stroke="url(#imperial-silver)" stroke-width="4" fill="none"/>
+    <ellipse cx="-28" cy="11" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(-40 -28 11)"/>
+    <ellipse cx="-21" cy="21" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(-25 -21 21)"/>
+    <path d="M 25,21 Q 35,14 31,0" stroke="url(#imperial-silver)" stroke-width="4" fill="none"/>
+    <ellipse cx="28" cy="11" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(40 28 11)"/>
+    <ellipse cx="21" cy="21" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(25 21 21)"/>
+  </g>
+  <g transform="translate(360,300)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+    <path d="M -25,21 Q -39,11 -39,-11" stroke="url(#imperial-silver)" stroke-width="4" fill="none"/>
+    <ellipse cx="-38" cy="-4" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(-60 -38 -4)"/>
+    <ellipse cx="-34" cy="7" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(-45 -34 7)"/>
+    <ellipse cx="-28" cy="17" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(-30 -28 17)"/>
+    <ellipse cx="-20" cy="24" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(-20 -20 24)"/>
+    <path d="M 25,21 Q 39,11 39,-11" stroke="url(#imperial-silver)" stroke-width="4" fill="none"/>
+    <ellipse cx="38" cy="-4" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(60 38 -4)"/>
+    <ellipse cx="34" cy="7" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(45 34 7)"/>
+    <ellipse cx="28" cy="17" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(30 28 17)"/>
+    <ellipse cx="20" cy="24" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(20 20 24)"/>
+  </g>
+  <g transform="translate(600,300)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+    <circle cx="0" cy="0" r="42" stroke="url(#imperial-silver)" stroke-width="4" fill="none"/>
+    <ellipse cx="-39" cy="-14" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(-70 -39 -14)"/>
+    <ellipse cx="-42" cy="0" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(-55 -42 0)"/>
+    <ellipse cx="-39" cy="14" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(-40 -39 14)"/>
+    <ellipse cx="-31" cy="28" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(-25 -31 28)"/>
+    <ellipse cx="-17" cy="38" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(-10 -17 38)"/>
+    <ellipse cx="0" cy="42" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(0 0 42)"/>
+    <ellipse cx="39" cy="-14" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(70 39 -14)"/>
+    <ellipse cx="42" cy="0" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(55 42 0)"/>
+    <ellipse cx="39" cy="14" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(40 39 14)"/>
+    <ellipse cx="31" cy="28" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(25 31 28)"/>
+    <ellipse cx="17" cy="38" rx="7" ry="13" fill="url(#imperial-silver)" transform="rotate(10 17 38)"/>
+  </g>
+  <g transform="translate(840,300)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+    <circle cx="0" cy="0" r="60" fill="url(#skull-glow)"/>
+    <use href="#star" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+  </g>
+  <g transform="translate(1080,300)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+    <circle cx="0" cy="0" r="60" fill="url(#skull-glow)"/>
+    <use href="#star" x="-21" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+    <use href="#star" x="21" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+  </g>
+  <g transform="translate(120,500)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+    <circle cx="0" cy="0" r="60" fill="url(#skull-glow)"/>
+    <use href="#star" x="-28" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+    <use href="#star" x="0" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+    <use href="#star" x="28" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+  </g>
+  <g transform="translate(360,500)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+    <circle cx="0" cy="0" r="60" fill="url(#skull-glow)"/>
+    <use href="#star" x="-18" y="-14" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+    <use href="#star" x="18" y="-14" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+    <use href="#star" x="-18" y="14" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+    <use href="#star" x="18" y="14" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+  </g>
+  <g transform="translate(600,500)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="73" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="5"/>
+    <circle cx="0" cy="0" r="63" fill="url(#skull-glow)"/>
+    <use href="#star" x="-31" y="-14" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+    <use href="#star" x="0" y="-14" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+    <use href="#star" x="31" y="-14" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+    <use href="#star" x="-15" y="17" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+    <use href="#star" x="15" y="17" transform="scale(1.8)" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="2"/>
+  </g>
+  <g transform="translate(840,500)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+    <g transform="translate(0,-14)">
+      <ellipse cx="0" cy="0" rx="34" ry="39" fill="url(#imperial-silver)"/>
+      <ellipse cx="-14" cy="-8" rx="8" ry="14" fill="#1a1a1a"/>
+      <ellipse cx="14" cy="-8" rx="8" ry="14" fill="#1a1a1a"/>
+      <path d="M -4,11 L 0,4 L 4,11 Z" fill="#1a1a1a"/>
+      <rect x="-25" y="28" width="50" height="17" fill="url(#imperial-silver)"/>
+      <path d="M -21,28 L -21,45 M -14,28 L -14,45 M -7,28 L -7,45 M 0,28 L 0,45 M 7,28 L 7,45 M 14,28 L 14,45 M 21,28 L 21,45" stroke="#1a1a1a" stroke-width="2"/>
+      <path d="M -25,25 Q 0,31 25,25" stroke="#1a1a1a" stroke-width="2" fill="none"/>
+    </g>
+  </g>
+  <g transform="translate(1080,500)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+    <path d="M 0,-39 L -14,-14 L -39,0 L -14,14 L 0,39 L 14,14 L 39,0 L 14,-14 Z" fill="url(#imperial-silver)" stroke="#e8e8e8" stroke-width="3"/>
+    <path d="M 0,-31 L -10,-10 L -31,0 L -10,10 L 0,31 L 10,10 L 31,0 L 10,-10 Z" fill="#1a1a1a"/>
+  </g>
+  <g transform="translate(120,700)" filter="url(#shadow)">
+    <circle cx="0" cy="0" r="70" fill="url(#blood-red)" stroke="url(#imperial-silver)" stroke-width="4"/>
+  </g>
+</svg>
