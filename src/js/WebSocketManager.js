@@ -5,24 +5,13 @@ const WebSocketManager = {
   currentRoomId: null,
   debugLog: true,
   discoveredServers: [],
-  isApk: false,
   
-  init() {
-    this.isApk = typeof cordova !== 'undefined' || 
-                 typeof Capacitor !== 'undefined' || 
-                 window.location.protocol === 'file:' || 
-                 window.navigator.userAgent.includes('wv') ||
-                 /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    this.log(`Platform: ${this.isApk ? 'Mobile APK' : 'Web Browser'}`);
-  },
-
   log(message, data = null) {
     if (this.debugLog) {
-      const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
       if (data) {
-        console.log(`[${timestamp}][WS] ${message}`, data);
+        console.log(`[WS] ${message}`, data);
       } else {
-        console.log(`[${timestamp}][WS] ${message}`);
+        console.log(`[WS] ${message}`);
       }
     }
   },
@@ -51,22 +40,15 @@ const WebSocketManager = {
   },
 
   getDefaultServers() {
-    const cloudUrl = this.isApk 
-      ? 'ws://salpakan-game.onrender.com'
-      : (window.location.protocol === 'https:' 
-          ? 'wss://salpakan-game.onrender.com' 
-          : 'ws://salpakan-game.onrender.com');
-    
     const servers = [
       { 
         name: 'Cloud', 
-        url: cloudUrl,
+        url: 'wss://salpakan-game.onrender.com', 
         type: 'cloud',
         enabled: true 
       }
     ];
     
-    this.log('Default cloud server URL', cloudUrl);
     return servers;
   },
 
@@ -92,16 +74,16 @@ const WebSocketManager = {
       const localServers = settings.localServers
         .filter(s => s.enabled)
         .map(s => {
+          const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
           return {
             name: s.name,
-            url: `ws://${s.ip}:8080`,
+            url: `${wsProtocol}://${s.ip}:8080`,
             type: 'manual',
             enabled: true,
             ip: s.ip
           };
         });
       
-      this.log('Local servers loaded', localServers);
       return [...configured, ...localServers, ...this.discoveredServers];
     }
     
@@ -109,9 +91,7 @@ const WebSocketManager = {
   },
 
   getEnabledServers() {
-    const enabled = this.getAllServers().filter(s => s.enabled);
-    this.log('Enabled servers', enabled);
-    return enabled;
+    return this.getAllServers().filter(s => s.enabled);
   },
 
   // ============================================
@@ -134,26 +114,24 @@ const WebSocketManager = {
   },
 
   async connectToManualIP(ip) {
-    this.log('Testing connection to', ip);
+    this.log('Attempting manual connection to', ip);
     
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
 
       const response = await fetch(`http://${ip}:8080/discover`, {
         method: 'GET',
         signal: controller.signal,
-        mode: 'cors',
-        headers: {
-          'Accept': 'application/json',
-        }
+        mode: 'cors'
       });
 
       clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
-        const wsUrl = `ws://${ip}:${data.wsPort || 8080}`;
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsUrl = `${wsProtocol}://${ip}:${data.wsPort || 8080}`;
         
         const server = {
           name: data.serverName || `Local Server (${ip})`,
@@ -165,13 +143,11 @@ const WebSocketManager = {
         
         this.discoveredServers = [server];
         this.cacheServerIP(ip);
-        this.log('Manual server connected', server);
+        this.log('Successfully connected to server', server);
         return server;
-      } else {
-        this.log('Server responded with error', response.status);
       }
     } catch (error) {
-      this.log('Manual connection failed', error.message);
+      this.log('Failed to connect', error);
       return null;
     }
     return null;
@@ -182,9 +158,6 @@ const WebSocketManager = {
   // ============================================
   
   getServerUrl() {
-    if (this.isApk) {
-      return 'ws://salpakan-game.onrender.com';
-    }
     if (window.location.protocol === 'https:') {
       return 'wss://salpakan-game.onrender.com';
     }
@@ -195,16 +168,16 @@ const WebSocketManager = {
     const servers = this.getEnabledServers();
     const allRooms = [];
 
-    this.log(`Fetching rooms from ${servers.length} server(s)`);
+    this.log('Fetching rooms from enabled servers', servers);
 
     const roomFetchPromises = servers.map(async (server) => {
       try {
-        this.log(`Fetching from ${server.name} (${server.url})`);
+        this.log(`Trying ${server.name} at ${server.url}`);
         const rooms = await this.fetchRoomsFromServer(server.url, server.name);
-        this.log(`${server.name}: ${rooms.length} room(s) found`);
+        this.log(`Got ${rooms.length} rooms from ${server.name}`, rooms);
         return rooms;
       } catch (error) {
-        this.log(`${server.name} fetch failed: ${error.message}`);
+        this.log(`Failed to fetch from ${server.name}: ${error.message}`);
         return [];
       }
     });
@@ -212,30 +185,26 @@ const WebSocketManager = {
     const results = await Promise.all(roomFetchPromises);
     results.forEach(rooms => allRooms.push(...rooms));
 
-    this.log(`Total available rooms: ${allRooms.length}`);
+    this.log(`Total rooms: ${allRooms.length}`, allRooms);
     return allRooms;
   },
 
   fetchRoomsFromServer(serverUrl, serverName) {
     return new Promise((resolve, reject) => {
-      this.log(`Opening WS to ${serverName}`);
       const ws = new WebSocket(serverUrl);
       const timeoutId = setTimeout(() => {
-        this.log(`${serverName} fetch timeout`);
         ws.close();
-        reject(new Error(`Timeout: ${serverName}`));
-      }, 5000);
+        reject(new Error(`Timeout connecting to ${serverName}`));
+      }, 2000);
 
       ws.onopen = () => {
-        this.log(`${serverName} WS opened, requesting rooms`);
+        this.log(`Connected to ${serverName} for room list`);
         ws.send(JSON.stringify({ type: 'getRooms' }));
       };
 
       ws.onmessage = (event) => {
         clearTimeout(timeoutId);
         const data = JSON.parse(event.data);
-        this.log(`${serverName} response`, data.type);
-        
         if (data.type === 'roomList') {
           const roomsWithServer = data.rooms.map(room => ({
             ...room,
@@ -247,18 +216,15 @@ const WebSocketManager = {
         }
       };
 
-      ws.onerror = (error) => {
+      ws.onerror = () => {
         clearTimeout(timeoutId);
-        this.log(`${serverName} WS error`, error);
+        this.log(`Error fetching from ${serverName}`);
         ws.close();
         resolve([]);
       };
 
-      ws.onclose = (event) => {
+      ws.onclose = () => {
         clearTimeout(timeoutId);
-        if (event.code !== 1000) {
-          this.log(`${serverName} closed unexpectedly`, event.code);
-        }
       };
     });
   },
@@ -270,11 +236,8 @@ const WebSocketManager = {
   connect(roomId, playerId = null, serverUrl = null) {
     const url = serverUrl || this.getServerUrl();
     
-    this.log(`Connect request: Room=${roomId}, Server=${url}`);
-    
-    if (this.ws && this.ws.readyState === WebSocket.OPEN && 
-        this.currentServer === url && this.currentRoomId === roomId) {
-      this.log('Already connected to this room');
+    if (this.ws && this.ws.readyState === WebSocket.OPEN && this.currentServer === url && this.currentRoomId === roomId) {
+      this.log('Already connected to same room and server');
       return this.ws;
     }
 
@@ -287,49 +250,33 @@ const WebSocketManager = {
     this.currentServer = url;
     this.currentRoomId = roomId;
     
-    this.log(`Opening WebSocket to ${url}`);
+    this.log(`Connecting to ${url} for room ${roomId}`);
+    
     const ws = new WebSocket(url);
     this.ws = ws;
 
-    const connectionTimeout = setTimeout(() => {
-      if (ws.readyState !== WebSocket.OPEN) {
-        this.log('Connection timeout - closing');
-        ws.close();
-        this.ws = null;
-      }
-    }, 10000);
-
     ws.onopen = () => {
-      clearTimeout(connectionTimeout);
-      this.log('WebSocket OPEN - sending join request');
-      const joinMsg = { type: 'join', roomId, playerId };
-      this.log('Join message', joinMsg);
-      ws.send(JSON.stringify(joinMsg));
+      this.log('Connection opened, joining room');
+      ws.send(JSON.stringify({ type: 'join', roomId, playerId }));
     };
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      this.log(`⬇ Received: ${data.type}`, data);
+      this.log(`Received: ${data.type}`, data);
       const callback = this.callbacks[data.type];
       if (callback) {
         callback(data);
       } else {
-        this.log(`⚠ No handler for: ${data.type}`);
+        this.log(`No handler for ${data.type}`);
       }
     };
 
     ws.onerror = (error) => {
-      clearTimeout(connectionTimeout);
-      this.log('❌ WebSocket ERROR', error);
+      this.log('Connection error', error);
     };
     
     ws.onclose = (event) => {
-      clearTimeout(connectionTimeout);
-      this.log('WebSocket CLOSED', { 
-        code: event.code, 
-        reason: event.reason || 'No reason',
-        wasClean: event.wasClean 
-      });
+      this.log('Connection closed', { code: event.code, reason: event.reason });
       this.ws = null;
       this.currentRoomId = null;
     };
@@ -339,28 +286,23 @@ const WebSocketManager = {
 
   send(data) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.log(`⬆ Sending: ${data.type}`, data);
+      this.log(`Sending: ${data.type}`, data);
       this.ws.send(JSON.stringify(data));
-      return true;
     } else {
-      const state = this.ws ? this.ws.readyState : 'null';
-      this.log(`⚠ Cannot send (state=${state})`, data);
-      return false;
+      this.log(`Cannot send, WS state: ${this.ws?.readyState}`, data);
     }
   },
 
   on(type, callback) {
-    this.log(`Registered handler: ${type}`);
     this.callbacks[type] = callback;
   },
 
   off(type) {
-    this.log(`Removed handler: ${type}`);
     delete this.callbacks[type];
   },
 
   disconnect() {
-    this.log('Disconnecting all');
+    this.log('Disconnecting');
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.onerror = null;
@@ -371,10 +313,7 @@ const WebSocketManager = {
     this.callbacks = {};
     this.currentServer = null;
     this.currentRoomId = null;
-    this.log('Disconnected');
   }
 };
-
-WebSocketManager.init();
 
 export default WebSocketManager;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ServerSettings from './ServerSettings';
+import DebugConsole from './DebugConsole';
 
 export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roomId, setRoomId, WebSocketManager, onRefreshRooms }) {
   const [showSettings, setShowSettings] = useState(false);
@@ -9,7 +10,6 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
   const [enabledServers, setEnabledServers] = useState([]);
 
   useEffect(() => {
-    WebSocketManager.init();
     loadEnabledServers();
     fetchAllRooms();
     const interval = setInterval(fetchAllRooms, 2000);
@@ -47,6 +47,7 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
   };
 
   const handleCreateRoom = (serverUrl) => {
+    console.log('CREATE ROOM clicked, server:', serverUrl);
     onCreateRoom(serverUrl);
     setShowServerSelect(false);
   };
@@ -54,6 +55,7 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
   const handleShowCreateRoom = () => {
     loadEnabledServers();
     const servers = WebSocketManager.getEnabledServers();
+    console.log('Show create room, enabled servers:', servers);
     if (servers.length === 0) {
       alert('No servers configured. Please add a server in Settings.');
       setShowSettings(true);
@@ -87,6 +89,8 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
 
   return (
     <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-stone-950 to-zinc-950 p-4">
+      <DebugConsole />
+      
       <div className="bg-gradient-to-br from-zinc-900 to-black p-10 rounded-lg shadow-2xl max-w-md w-full border-4 border-yellow-700">
         <div className="flex justify-between items-center mb-4">
           <button onClick={onBack} className="text-yellow-600 hover:text-yellow-400 font-serif text-sm">
@@ -208,6 +212,7 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                     }
                     const cloudServer = enabledServers.find(s => s.type === 'cloud');
                     const serverUrl = cloudServer ? cloudServer.url : enabledServers[0].url;
+                    console.log('JOIN ROOM clicked, room:', roomId, 'server:', serverUrl);
                     onJoinRoom(roomId, serverUrl);
                   }
                 }}
