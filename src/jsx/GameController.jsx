@@ -57,7 +57,27 @@ export default function GameController() {
   const [victoryData, setVictoryData] = useState(null);
   const [flaggedPiece, setFlaggedPiece] = useState(null);
   const [selectedServerUrl, setSelectedServerUrl] = useState(null);
+  const [roomType, setRoomType] = useState('2player');
+  const [playerNames, setPlayerNames] = useState({});
 
+  const selectSlot = (slotNum) => {
+    WebSocketManager.send({
+      type: 'selectSlot',
+      roomId,
+      playerId: playerIdRef.current || playerId,
+      slotNum
+    });
+  };
+
+  const updatePlayerName = (name) => {
+    WebSocketManager.send({
+      type: 'updateName',
+      roomId,
+      playerId: playerIdRef.current || playerId,
+      name
+    });
+  };
+  
   useEffect(() => {
     if (screen === 'multiplayer') {
       const fetchRooms = async () => {
@@ -81,41 +101,80 @@ export default function GameController() {
         playerIdRef.current = myId;
         setPlayerId(myId);
         
-        const normalizedPlayers = [null, null];
-        data.players.forEach(p => {
-          if (p === 1) normalizedPlayers[0] = 1;
-          if (p === 2) normalizedPlayers[1] = 2;
-        });
-        setPlayers(normalizedPlayers);
+        // Store players as object {playerId: slotNum}
+        setPlayers(data.players || {});
         setConnectionStatus('connected');
+        setRoomType(data.roomType);
+        
+        // Set player names
+        if (data.playerNames) {
+          setPlayerNames(data.playerNames);
+        }
         
         const myReady = data.readyStates?.[myId] || false;
-        const opponentId = myId === 1 ? 2 : 1;
-        const oppReady = data.readyStates?.[opponentId] || false;
+        
+        // Calculate opponent ready state
+        let oppReady = false;
+        Object.keys(data.players).forEach(pid => {
+          if (parseInt(pid) !== myId) {
+            oppReady = oppReady || (data.readyStates?.[pid] || false);
+          }
+        });
         
         setMyReadyState(myReady);
         setOpponentReadyState(oppReady);
-        setIsRoomReady(myReady && oppReady);
+        setIsRoomReady(data.readyStates && Object.values(data.readyStates).every(r => r));
+      };
+
+      const handleRoomCreated = (data) => {
+        setRoomId(data.roomId);
+        setRoomType(data.roomType);
+        setScreen('room');
       };
 
       const handlePlayerJoined = (data) => {
-        const normalizedPlayers = [null, null];
-        data.players.forEach(p => {
-          if (p === 1) normalizedPlayers[0] = 1;
-          if (p === 2) normalizedPlayers[1] = 2;
-        });
-        setPlayers(normalizedPlayers);
+        setPlayers(data.players || {});
+        setPlayerNames(data.playerNames || {});
         
         const currentPlayerId = playerIdRef.current;
         if (data.readyStates && currentPlayerId) {
           const myReady = data.readyStates[currentPlayerId] || false;
-          const opponentId = currentPlayerId === 1 ? 2 : 1;
-          const oppReady = data.readyStates[opponentId] || false;
+          
+          let oppReady = false;
+          Object.keys(data.players).forEach(pid => {
+            if (parseInt(pid) !== currentPlayerId) {
+              oppReady = oppReady || (data.readyStates[pid] || false);
+            }
+          });
           
           setMyReadyState(myReady);
           setOpponentReadyState(oppReady);
-          setIsRoomReady(myReady && oppReady);
+          setIsRoomReady(data.readyStates && Object.values(data.readyStates).every(r => r));
         }
+      };
+
+      const handleSlotSelected = (data) => {
+        setPlayers(data.players || {});
+        setPlayerNames(data.playerNames || {});
+        
+        const currentPlayerId = playerIdRef.current;
+        if (data.readyStates && currentPlayerId) {
+          const myReady = data.readyStates[currentPlayerId] || false;
+          
+          let oppReady = false;
+          Object.keys(data.players).forEach(pid => {
+            if (parseInt(pid) !== currentPlayerId) {
+              oppReady = oppReady || (data.readyStates[pid] || false);
+            }
+          });
+          
+          setMyReadyState(myReady);
+          setOpponentReadyState(oppReady);
+        }
+      };
+
+      const handleNameUpdated = (data) => {
+        setPlayerNames(data.playerNames || {});
       };
 
       const handlePlayerReady = (data) => {
@@ -123,9 +182,14 @@ export default function GameController() {
         if (!currentPlayerId) return;
         
         if (data.readyStates) {
-          const opponentId = currentPlayerId === 1 ? 2 : 1;
           const myReady = data.readyStates[currentPlayerId] === true;
-          const oppReady = data.readyStates[opponentId] === true;
+          
+          let oppReady = false;
+          Object.keys(data.readyStates).forEach(pid => {
+            if (parseInt(pid) !== currentPlayerId) {
+              oppReady = oppReady || (data.readyStates[pid] === true);
+            }
+          });
           
           setMyReadyState(myReady);
           setOpponentReadyState(oppReady);
@@ -209,8 +273,11 @@ export default function GameController() {
         setShowVictory(true);
       };
 
+      WebSocketManager.on('roomCreated', handleRoomCreated);
       WebSocketManager.on('roomJoined', handleRoomJoined);
       WebSocketManager.on('playerJoined', handlePlayerJoined);
+      WebSocketManager.on('slotSelected', handleSlotSelected);
+      WebSocketManager.on('nameUpdated', handleNameUpdated);
       WebSocketManager.on('playerReady', handlePlayerReady);
       WebSocketManager.on('gameStart', handleGameStart);
       WebSocketManager.on('opponentDeploymentUpdate', handleOpponentDeploymentUpdate);
@@ -221,8 +288,8 @@ export default function GameController() {
 
       if (screen === 'room') {
         const needsConnection = !WebSocketManager.ws || 
-                               WebSocketManager.ws.readyState !== WebSocket.OPEN ||
-                               WebSocketManager.currentRoomId !== roomId;
+                              WebSocketManager.ws.readyState !== WebSocket.OPEN ||
+                              WebSocketManager.currentRoomId !== roomId;
         
         if (needsConnection) {
           WebSocketManager.connect(roomId, null, selectedServerUrl);
@@ -231,8 +298,11 @@ export default function GameController() {
 
       return () => {
         if (screen !== 'room' && screen !== 'onlineGame') {
+          WebSocketManager.off('roomCreated');
           WebSocketManager.off('roomJoined');
           WebSocketManager.off('playerJoined');
+          WebSocketManager.off('slotSelected');
+          WebSocketManager.off('nameUpdated');
           WebSocketManager.off('playerReady');
           WebSocketManager.off('gameStart');
           WebSocketManager.off('opponentDeploymentUpdate');
@@ -644,29 +714,28 @@ export default function GameController() {
   };
 
   const createRoom = (serverUrl = null, roomType = '2player') => {
-    const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    setRoomId(newRoomId);
     setSelectedServerUrl(serverUrl);
     setConnectionStatus('connecting');
-    setPlayers([null, null]);
+    setPlayers({});
+    setRoomType(roomType);
     setIsRoomReady(false);
     setMyReadyState(false);
     setOpponentReadyState(false);
+    setPlayerNames({});
     WebSocketManager.createRoom(roomType, serverUrl);
-    setScreen('room');
   };
 
   const joinRoom = (id, serverUrl = null) => {
     setRoomId(id);
     setSelectedServerUrl(serverUrl);
     setConnectionStatus('connecting');
-    setPlayers([null, null]);
+    setPlayers({});
     setIsRoomReady(false);
     setMyReadyState(false);
     setOpponentReadyState(false);
+    setPlayerNames({});
     setScreen('room');
   };
-
   const toggleReady = () => {
     const newReadyState = !myReadyState;
     const currentPlayerId = playerIdRef.current || playerId;
@@ -718,11 +787,12 @@ export default function GameController() {
         setScreen('multiplayer'); 
         setRoomId(''); 
         setPlayerId(null);
-        setPlayers([null, null]);
+        setPlayers({});
         setConnectionStatus('disconnected'); 
         setMyReadyState(false); 
         setOpponentReadyState(false); 
         setIsRoomReady(false);
+        setPlayerNames({});
         WebSocketManager.disconnect(); 
       }}
       onStart={startOnlineGame}
@@ -733,6 +803,10 @@ export default function GameController() {
       opponentReady={opponentReadyState}
       playerId={playerId}
       connectionStatus={connectionStatus}
+      roomType={roomType}
+      onSelectSlot={selectSlot}
+      playerNames={playerNames}
+      onUpdateName={updatePlayerName}
     />;
   }
 

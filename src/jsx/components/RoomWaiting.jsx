@@ -69,10 +69,21 @@ export default function RoomWaiting({
       return { ready: true, text: '👁️ OBSERVING' };
     }
     
-    if (pid === playerId) {
+    const playerReadyStates = {};
+    Object.keys(players).forEach(pId => {
+      if (pId == playerId) {
+        playerReadyStates[pId] = myReady;
+      } else {
+        playerReadyStates[pId] = opponentReady;
+      }
+    });
+    
+    const isPlayerReady = playerReadyStates[pid] || false;
+    
+    if (pid == playerId) {
       return { ready: myReady, text: myReady ? '✓ READY' : '⏳ STANDBY' };
     } else {
-      return { ready: opponentReady, text: opponentReady ? '✓ READY' : '⏳ STANDBY' };
+      return { ready: isPlayerReady, text: isPlayerReady ? '✓ READY' : '⏳ STANDBY' };
     }
   };
 
