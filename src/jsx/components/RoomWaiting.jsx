@@ -48,8 +48,15 @@ export default function RoomWaiting({
   };
 
   const handleSelectSlot = (slotNum) => {
-    if (onSelectSlot && connectionStatus === 'connected') {
+    console.log('Selecting slot:', slotNum, 'PlayerId:', playerId, 'ConnectionStatus:', connectionStatus);
+    if (onSelectSlot && connectionStatus === 'connected' && playerId) {
       onSelectSlot(slotNum);
+    } else {
+      console.log('Cannot select slot - missing requirements:', {
+        hasCallback: !!onSelectSlot,
+        isConnected: connectionStatus === 'connected',
+        hasPlayerId: !!playerId
+      });
     }
   };
 
@@ -180,16 +187,18 @@ export default function RoomWaiting({
               const isSlotHost = hasPlayer && pid === hostId;
               const status = getReadyStatus(slotNum);
               const isObserverSlot = isThreePlayer && slotNum === 3;
-              const canSelect = connectionStatus === 'connected';
+              const canSelect = !hasPlayer && !mySlot && connectionStatus === 'connected';
 
               return (
                 <button
                   key={idx}
                   onClick={() => canSelect && handleSelectSlot(slotNum)}
-                  disabled={!canSelect}
+                  disabled={!canSelect && !isMe}
                   className={`w-full bg-black rounded-sm px-2 py-2 mb-1.5 flex justify-between items-center transition-all ${
-                    canSelect ? 'opacity-70 hover:opacity-100 cursor-pointer' : hasPlayer ? 'opacity-100 cursor-default' : 'opacity-50 cursor-not-allowed'
-                  } ${canSelect && !hasPlayer ? 'border-2 border-dashed border-zinc-700 hover:border-zinc-600' : hasPlayer && isMe ? 'border border-zinc-600' : 'border border-zinc-800'}`}>
+                    canSelect ? 'opacity-100 hover:opacity-100 cursor-pointer border-2 border-dashed border-zinc-600 hover:border-zinc-500' : 
+                    hasPlayer ? 'opacity-100 cursor-default border border-zinc-800' : 
+                    'opacity-50 cursor-not-allowed border border-zinc-800'
+                  } ${isMe ? 'ring-2 ring-zinc-500' : ''}`}>
                   <div className="flex flex-col items-start">
                     <span className={`text-sm uppercase tracking-wider font-bold ${isObserverSlot ? 'text-violet-300' : 'text-zinc-200'}`} style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
                       {isSlotHost && '👑 '}
