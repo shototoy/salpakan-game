@@ -12,61 +12,386 @@ const dashboardHTML = `<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Salpakan Game Server</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Courier New', monospace; background: linear-gradient(135deg, #000000 0%, #18181b 50%, #000000 100%); color: #e4e4e7; min-height: 100vh; padding: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; background: #09090b; border: 4px solid #27272a; border-radius: 4px; box-shadow: 0 0 40px rgba(212, 175, 55, 0.3); overflow: hidden; }
-        header { background: linear-gradient(135deg, #18181b 0%, #09090b 100%); padding: 40px 20px; text-align: center; border-bottom: 4px solid #27272a; position: relative; }
-        header::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, transparent 100%); pointer-events: none; }
-        .logo { font-size: 60px; margin-bottom: 10px; filter: drop-shadow(0 0 15px rgba(220, 38, 38, 0.8)); animation: pulse 2s ease-in-out infinite; }
-        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
-        h1 { font-family: Impact, 'Arial Black', sans-serif; font-size: 48px; color: #e4e4e7; text-shadow: 2px 2px 0px rgba(0, 0, 0, 1), 0 0 20px rgba(220, 38, 38, 0.5), 0 0 3px rgba(161, 161, 170, 0.8); letter-spacing: 4px; margin-bottom: 10px; }
-        .subtitle { font-size: 14px; color: #71717a; text-transform: uppercase; letter-spacing: 3px; }
-        .server-info { padding: 30px; background: #18181b; border-bottom: 2px solid #27272a; }
-        .server-info h2 { font-family: Impact, 'Arial Black', sans-serif; font-size: 24px; color: #a1a1aa; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
-        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
-        .info-item { background: #09090b; padding: 15px 20px; border: 2px solid #27272a; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; transition: all 0.3s ease; }
-        .info-item:hover { border-color: #3f3f46; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); }
-        .label { font-size: 12px; color: #71717a; text-transform: uppercase; letter-spacing: 1px; }
-        .value { font-size: 18px; font-weight: bold; color: #e4e4e7; }
-        .status-online { color: #22c55e; }
-        .status-offline { color: #ef4444; }
-        .status-waiting { color: #eab308; }
-        .rooms-section { padding: 30px; background: #09090b; }
-        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .section-header h2 { font-family: Impact, 'Arial Black', sans-serif; font-size: 24px; color: #a1a1aa; text-transform: uppercase; letter-spacing: 2px; }
-        .refresh-btn { background: linear-gradient(to bottom, #3f3f46, #27272a); color: #e4e4e7; border: 2px solid #52525b; padding: 8px 16px; font-family: 'Courier New', monospace; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; border-radius: 4px; transition: all 0.3s ease; }
-        .refresh-btn:hover { background: linear-gradient(to bottom, #450a0a, #7f1d1d); border-color: #dc2626; box-shadow: 0 0 20px rgba(220, 38, 38, 0.5); }
-        .rooms-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; min-height: 200px; }
-        .room-card { background: #18181b; border: 2px solid #27272a; border-radius: 4px; padding: 20px; transition: all 0.3s ease; animation: fadeIn 0.3s ease; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .room-card:hover { border-color: #52525b; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6); }
-        .room-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #27272a; }
-        .room-id { font-family: Impact, 'Arial Black', sans-serif; font-size: 24px; color: #e4e4e7; letter-spacing: 2px; }
-        .room-info { display: flex; flex-direction: column; gap: 8px; }
-        .info-row { display: flex; justify-content: space-between; align-items: center; }
-        .players-count { font-size: 14px; color: #a1a1aa; }
-        .no-rooms, .loading { grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: #71717a; font-size: 16px; background: #18181b; border: 2px dashed #27272a; border-radius: 4px; }
-        .instructions { padding: 30px; background: #18181b; border-top: 2px solid #27272a; }
-        .instructions h2 { font-family: Impact, 'Arial Black', sans-serif; font-size: 24px; color: #a1a1aa; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
-        .instruction-card { background: #09090b; border: 2px solid #27272a; border-radius: 4px; padding: 20px; }
-        .instruction-card h3 { color: #e4e4e7; font-size: 18px; margin-bottom: 15px; font-family: Impact, 'Arial Black', sans-serif; text-transform: uppercase; letter-spacing: 1px; }
-        .instruction-card p { color: #a1a1aa; line-height: 1.6; margin-bottom: 15px; }
-        .instruction-card ol { color: #a1a1aa; line-height: 1.8; margin-left: 25px; }
-        .instruction-card li { margin-bottom: 8px; }
-        footer { padding: 30px; text-align: center; background: #09090b; border-top: 4px solid #27272a; }
-        footer p { color: #71717a; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px; }
-        .version { color: #52525b; font-size: 10px; }
-        @media (max-width: 768px) { h1 { font-size: 32px; } .logo { font-size: 40px; } .info-grid { grid-template-columns: 1fr; } .rooms-list { grid-template-columns: 1fr; } .section-header { flex-direction: column; gap: 15px; align-items: stretch; } .refresh-btn { width: 100%; } }
-        ::-webkit-scrollbar { width: 10px; }
-        ::-webkit-scrollbar-track { background: #09090b; }
-        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+        /* ============================================
+           RESET & BASE
+           ============================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #000000 0%, #18181b 50%, #000000 100%);
+            color: #e4e4e7;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #09090b;
+            border: 4px solid #27272a;
+            border-radius: 4px;
+            box-shadow: 0 0 40px rgba(212, 175, 55, 0.3);
+            overflow: hidden;
+        }
+
+        /* ============================================
+           HEADER
+           ============================================ */
+        header {
+            background: linear-gradient(135deg, #18181b 0%, #09090b 100%);
+            padding: 40px 20px;
+            text-align: center;
+            border-bottom: 4px solid #27272a;
+            position: relative;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, transparent 100%);
+            pointer-events: none;
+        }
+
+        h1 {
+            font-family: Impact, 'Arial Black', sans-serif;
+            font-size: 48px;
+            color: #e4e4e7;
+            text-shadow: 2px 2px 0px rgba(0, 0, 0, 1),
+                         0 0 20px rgba(220, 38, 38, 0.5),
+                         0 0 3px rgba(161, 161, 170, 0.8);
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #71717a;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+
+        /* ============================================
+           SERVER INFO SECTION
+           ============================================ */
+        .server-info {
+            padding: 30px;
+            background: #18181b;
+            border-bottom: 2px solid #27272a;
+        }
+
+        .server-info h2 {
+            font-family: Impact, 'Arial Black', sans-serif;
+            font-size: 24px;
+            color: #a1a1aa;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .info-item {
+            background: #09090b;
+            padding: 15px 20px;
+            border: 2px solid #27272a;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .info-item:hover {
+            border-color: #3f3f46;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .label {
+            font-size: 12px;
+            color: #71717a;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #e4e4e7;
+        }
+
+        .status-online {
+            color: #22c55e;
+        }
+
+        .status-offline {
+            color: #ef4444;
+        }
+
+        .status-waiting {
+            color: #eab308;
+        }
+
+        /* ============================================
+           ROOMS SECTION
+           ============================================ */
+        .rooms-section {
+            padding: 30px;
+            background: #09090b;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .section-header h2 {
+            font-family: Impact, 'Arial Black', sans-serif;
+            font-size: 24px;
+            color: #a1a1aa;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .refresh-btn {
+            background: linear-gradient(to bottom, #3f3f46, #27272a);
+            color: #e4e4e7;
+            border: 2px solid #52525b;
+            padding: 8px 16px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            background: linear-gradient(to bottom, #450a0a, #7f1d1d);
+            border-color: #dc2626;
+            box-shadow: 0 0 20px rgba(220, 38, 38, 0.5);
+        }
+
+        .rooms-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            min-height: 200px;
+        }
+
+        .room-card {
+            background: #18181b;
+            border: 2px solid #27272a;
+            border-radius: 4px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .room-card:hover {
+            border-color: #52525b;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+        }
+
+        .room-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #27272a;
+        }
+
+        .room-id {
+            font-family: Impact, 'Arial Black', sans-serif;
+            font-size: 24px;
+            color: #e4e4e7;
+            letter-spacing: 2px;
+        }
+
+        .room-info {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .players-count {
+            font-size: 14px;
+            color: #a1a1aa;
+        }
+
+        .no-rooms,
+        .loading {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 60px 20px;
+            color: #71717a;
+            font-size: 16px;
+            background: #18181b;
+            border: 2px dashed #27272a;
+            border-radius: 4px;
+        }
+
+        /* ============================================
+           INSTRUCTIONS
+           ============================================ */
+        .instructions {
+            padding: 30px;
+            background: #18181b;
+            border-top: 2px solid #27272a;
+        }
+
+        .instructions h2 {
+            font-family: Impact, 'Arial Black', sans-serif;
+            font-size: 24px;
+            color: #a1a1aa;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .instruction-card {
+            background: #09090b;
+            border: 2px solid #27272a;
+            border-radius: 4px;
+            padding: 20px;
+        }
+
+        .instruction-card h3 {
+            color: #e4e4e7;
+            font-size: 18px;
+            margin-bottom: 15px;
+            font-family: Impact, 'Arial Black', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .instruction-card p {
+            color: #a1a1aa;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .instruction-card ol {
+            color: #a1a1aa;
+            line-height: 1.8;
+            margin-left: 25px;
+        }
+
+        .instruction-card li {
+            margin-bottom: 8px;
+        }
+
+        /* ============================================
+           FOOTER
+           ============================================ */
+        footer {
+            padding: 30px;
+            text-align: center;
+            background: #09090b;
+            border-top: 4px solid #27272a;
+        }
+
+        footer p {
+            color: #71717a;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+        }
+
+        .version {
+            color: #52525b;
+            font-size: 10px;
+        }
+
+        /* ============================================
+           ANIMATIONS
+           ============================================ */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ============================================
+           SCROLLBAR
+           ============================================ */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #09090b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3f3f46;
+        }
+
+        /* ============================================
+           RESPONSIVE
+           ============================================ */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 32px;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .rooms-list {
+                grid-template-columns: 1fr;
+            }
+
+            .section-header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: stretch;
+            }
+
+            .refresh-btn {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <div class="logo">🎮</div>
             <h1>SALPAKAN GAME SERVER</h1>
             <p class="subtitle">Multiplayer Strategy Game</p>
         </header>
@@ -131,20 +456,26 @@ const dashboardHTML = `<!DOCTYPE html>
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = \`\${protocol}//\${window.location.host}\`;
             ws = new WebSocket(wsUrl);
+            
             ws.onopen = () => {
                 console.log('Connected to server');
                 document.getElementById('serverStatus').innerHTML = '🟢 ONLINE';
                 document.getElementById('serverStatus').className = 'value status-online';
                 ws.send(JSON.stringify({ type: 'getRooms' }));
             };
+            
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
-                if (data.type === 'roomList') updateRoomsList(data.rooms);
+                if (data.type === 'roomList') {
+                    updateRoomsList(data.rooms);
+                }
             };
+            
             ws.onerror = () => {
                 document.getElementById('serverStatus').innerHTML = '🔴 ERROR';
                 document.getElementById('serverStatus').className = 'value status-offline';
             };
+            
             ws.onclose = () => {
                 document.getElementById('serverStatus').innerHTML = '🟡 RECONNECTING...';
                 document.getElementById('serverStatus').className = 'value status-waiting';
@@ -154,13 +485,18 @@ const dashboardHTML = `<!DOCTYPE html>
 
         function updateRoomsList(rooms) {
             const roomsList = document.getElementById('roomsList');
+            const roomCount = document.getElementById('roomCount');
+            
             roomCount.textContent = rooms.length;
+            
             const totalPlayers = rooms.reduce((sum, room) => sum + room.players, 0);
             document.getElementById('playerCount').textContent = totalPlayers;
+            
             if (rooms.length === 0) {
                 roomsList.innerHTML = '<div class="no-rooms">No active rooms. Create one in the game client!</div>';
                 return;
             }
+            
             roomsList.innerHTML = rooms.map(room => \`
                 <div class="room-card">
                     <div class="room-header">
