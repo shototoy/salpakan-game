@@ -23,11 +23,12 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url === '/discover') {
-    const roomList = Array.from(rooms.entries()).map(([id, room]) => ({
-      id,
-      players: Object.keys(room.players).length,
-      roomType: room.roomType
-    }));
+    const roomList = Array.from(rooms.entries())
+      .filter(([id, room]) => room.players.filter(p => p !== null).length > 0)
+      .map(([id, room]) => ({
+        id,
+        players: room.players.filter(p => p !== null).length
+      }));
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -38,16 +39,17 @@ const server = http.createServer((req, res) => {
       rooms: roomList,
       timestamp: Date.now()
     }));
+    console.log(`🔍 Discovery from ${req.socket.remoteAddress}`);
     return;
   }
 
   if (req.url === '/' || req.url === '/status') {
-    const roomList = Array.from(rooms.entries()).map(([id, room]) => ({
-      id,
-      players: Object.keys(room.players).length,
-      maxPlayers: room.roomType === '3player' ? 3 : 2,
-      roomType: room.roomType
-    }));
+    const roomList = Array.from(rooms.entries())
+      .filter(([id, room]) => room.players.filter(p => p !== null).length > 0)
+      .map(([id, room]) => ({
+        id,
+        players: room.players.filter(p => p !== null).length
+      }));
 
     const totalPlayers = roomList.reduce((sum, r) => sum + r.players, 0);
     const serverType = isProduction ? 'Cloud (Render)' : 'Local';
@@ -230,8 +232,8 @@ const server = http.createServer((req, res) => {
     <div class="rooms-list" id="roomsList">
       ${roomList.length > 0 ? roomList.map(room => `
         <div class="room-item">
-          <span>Room: ${room.id} ${room.roomType === '3player' ? '👁️' : '⚔️'}</span>
-          <span>Players: ${room.players}/${room.maxPlayers}</span>
+          <span>Room: ${room.id}</span>
+          <span>Players: ${room.players}/2</span>
         </div>
       `).join('') : '<div style="opacity: 0.5; padding: 20px;">No active rooms</div>'}
     </div>
@@ -252,16 +254,12 @@ const server = http.createServer((req, res) => {
           
           const roomsList = document.getElementById('roomsList');
           if (data.rooms.length > 0) {
-            roomsList.innerHTML = data.rooms.map(room => {
-              const maxPlayers = room.roomType === '3player' ? 3 : 2;
-              const icon = room.roomType === '3player' ? '👁️' : '⚔️';
-              return \`
-                <div class="room-item">
-                  <span>Room: \${room.id} \${icon}</span>
-                  <span>Players: \${room.players}/\${maxPlayers}</span>
-                </div>
-              \`;
-            }).join('');
+            roomsList.innerHTML = data.rooms.map(room => \`
+              <div class="room-item">
+                <span>Room: \${room.id}</span>
+                <span>Players: \${room.players}/2</span>
+              </div>
+            \`).join('');
           } else {
             roomsList.innerHTML = '<div style="opacity: 0.5; padding: 20px;">No active rooms</div>';
           }
@@ -295,10 +293,15 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocket.Server({ 
   server,
-  perMessageDeflate: false,
+  // Render-specific optimizations
+  perMessageDeflate: false, // Disable compression for lower latency
   clientTracking: true,
-  maxPayload: 100 * 1024
+  maxPayload: 100 * 1024 // 100KB max message size
 });
+
+// ============================================
+// NETWORK UTILITIES
+// ============================================
 
 function getLocalIP() {
   if (isProduction) return 'Cloud Server';
@@ -316,6 +319,10 @@ function getLocalIP() {
 
 const localIP = getLocalIP();
 const startTime = Date.now();
+
+// ============================================
+// WEBSOCKET SERVER
+// ============================================
 
 console.log('\n' + '='.repeat(60));
 console.log('🎮  SALPAKAN SERVER');
@@ -337,29 +344,38 @@ console.log(`🔍  Discovery: /discover endpoint available`);
 console.log('='.repeat(60) + '\n');
 
 server.listen(port, '0.0.0.0', () => {
-  console.log(`✅ Listening on port ${port}\n`);
+  console.log(`✅ Server ready on port ${port}`);
+  if (isProduction) {
+    console.log(`☁️  Running on Render cloud platform\n`);
+  } else {
+    console.log(`🏠  Running on local network\n`);
+  }
 });
 
 const rooms = new Map();
 
+// Cleanup inactive rooms periodically (important for free tier)
 setInterval(() => {
   const now = Date.now();
   rooms.forEach((room, roomId) => {
     if (!room.lastActivity) room.lastActivity = now;
     
+    // Remove rooms inactive for 30 minutes
     if (now - room.lastActivity > 30 * 60 * 1000) {
-      const hasPlayers = Object.keys(room.players).length > 0;
+      const hasPlayers = room.players.some(p => p !== null);
       if (!hasPlayers) {
         rooms.delete(roomId);
-        console.log(`🗑️  Cleaned up room: ${roomId}`);
+        console.log(`🗑️  Cleaned up inactive room: ${roomId}`);
       }
     }
   });
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000); // Check every 5 minutes
 
 wss.on('connection', (ws, req) => {
-  ws.isAlive = true;
+  const clientIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  console.log(`📡 New connection from ${clientIP}`);
   
+  // Send ping every 30 seconds to keep connection alive (important for Render)
   const pingInterval = setInterval(() => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.ping();
@@ -373,24 +389,22 @@ wss.on('connection', (ws, req) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
+      console.log(`📨 Received: ${data.type} ${data.roomId ? `(${data.roomId})` : ''}`);
       
+      // Update room activity
       if (data.roomId && rooms.has(data.roomId)) {
         rooms.get(data.roomId).lastActivity = Date.now();
       }
       
       switch (data.type) {
         case 'getRooms': handleGetRooms(ws); break;
-        case 'createRoom': handleCreateRoom(ws, data); break;
         case 'join': handleJoin(ws, data); break;
-        case 'selectSlot': handleSelectSlot(ws, data); break;
         case 'toggleReady': handleToggleReady(ws, data); break;
         case 'startGame': handleStartGame(data); break;
         case 'setupComplete': handleSetupComplete(data); break;
         case 'deploymentUpdate': handleDeploymentUpdate(data); break;
         case 'move': handleMove(data); break;
         case 'gameEnd': handleGameEnd(data); break;
-        case 'updateName': handleUpdateName(ws, data); break;
-        case 'watchGame': handleWatchGame(ws, data); break;
       }
     } catch (error) {
       console.error('❌ Error:', error);
@@ -399,6 +413,7 @@ wss.on('connection', (ws, req) => {
 
   ws.on('close', () => {
     clearInterval(pingInterval);
+    console.log('🔌 Connection closed');
     handleDisconnect(ws);
   });
 
@@ -407,9 +422,11 @@ wss.on('connection', (ws, req) => {
   });
 });
 
+// Ping all connections every 30 seconds to detect dead connections
 setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.isAlive === false) {
+      console.log('💀 Terminating dead connection');
       return ws.terminate();
     }
     ws.isAlive = false;
@@ -418,87 +435,47 @@ setInterval(() => {
 }, 30000);
 
 function handleGetRooms(ws) {
-  const roomList = Array.from(rooms.entries()).map(([id, room]) => {
-    const maxPlayers = room.roomType === '3player' ? 3 : 2;
-    const playerCount = Object.keys(room.players).length;
-    return {
+  const roomList = Array.from(rooms.entries())
+    .filter(([id, room]) => {
+      const activePlayers = room.players.filter(p => p !== null).length;
+      return activePlayers > 0;
+    })
+    .map(([id, room]) => ({
       id,
-      players: playerCount,
-      isFull: false,
-      roomType: room.roomType,
-      gameStarted: room.gameStarted || false
-    };
-  });
+      players: room.players.filter(p => p !== null).length,
+      isFull: room.players.filter(p => p !== null).length >= 2
+    }));
   
   ws.send(JSON.stringify({ type: 'roomList', rooms: roomList }));
 }
 
-function handleCreateRoom(ws, data) {
-  const { roomType = '2player' } = data;
-  const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-  
-  const room = {
-    roomType,
-    players: {},
-    clients: new Map(),
-    readyStates: {},
-    setupComplete: {},
-    playerNames: {},
-    gameStarted: false,
-    lastActivity: Date.now()
-  };
-  
-  rooms.set(roomId, room);
-  
-  let playerId = 1;
-  room.clients.set(playerId, ws);
-  ws.roomId = roomId;
-  ws.playerId = playerId;
-  ws.isAlive = true;
-  
-  console.log(`🆕 Room ${roomId} (${roomType}) - Creator P${playerId}`);
-  
-  ws.send(JSON.stringify({
-    type: 'roomCreated',
-    roomId,
-    roomType,
-    playerId,
-    players: room.players,
-    readyStates: room.readyStates,
-    playerNames: room.playerNames
-  }));
-}
-
 function handleJoin(ws, data) {
-  const { roomId, playerId: requestedPlayerId } = data;
+  const { roomId } = data;
   
   if (!rooms.has(roomId)) {
-    ws.send(JSON.stringify({ type: 'error', message: 'Room not found' }));
-    return;
+    rooms.set(roomId, {
+      players: [null, null],
+      clients: new Map(),
+      readyStates: { 1: false, 2: false },
+      setupComplete: { 1: false, 2: false },
+      lastActivity: Date.now()
+    });
+    console.log(`🆕 Room created: ${roomId}`);
   }
   
   const room = rooms.get(roomId);
   room.lastActivity = Date.now();
   
-  if (ws.playerId && ws.roomId === roomId) {
-    console.log(`♻️ Player ${ws.playerId} reconnecting to ${roomId}`);
-    ws.send(JSON.stringify({
-      type: 'roomJoined',
-      roomId,
-      playerId: ws.playerId,
-      players: room.players,
-      readyStates: room.readyStates,
-      roomType: room.roomType,
-      playerNames: room.playerNames,
-      gameStarted: room.gameStarted || false
-    }));
+  let playerId = null;
+  if (room.players[0] === null) {
+    playerId = 1;
+    room.players[0] = 1;
+  } else if (room.players[1] === null) {
+    playerId = 2;
+    room.players[1] = 2;
+  } else {
+    ws.send(JSON.stringify({ type: 'error', message: 'Room is full' }));
     return;
-  }
-  
-  let playerId = 1;
-  const existingIds = Array.from(room.clients.keys());
-  while (existingIds.includes(playerId)) {
-    playerId++;
   }
   
   room.clients.set(playerId, ws);
@@ -506,129 +483,62 @@ function handleJoin(ws, data) {
   ws.playerId = playerId;
   ws.isAlive = true;
   
-  console.log(`➕ Player ${playerId} → ${roomId}`);
+  console.log(`✅ Player ${playerId} joined room ${roomId}`);
   
   ws.send(JSON.stringify({
     type: 'roomJoined',
     roomId,
     playerId,
     players: room.players,
-    readyStates: room.readyStates,
-    roomType: room.roomType,
-    playerNames: room.playerNames,
-    gameStarted: room.gameStarted || false
+    readyStates: room.readyStates
   }));
   
-  broadcastToRoom(roomId, {
-    type: 'playerJoined',
-    players: room.players,
-    readyStates: room.readyStates,
-    playerNames: room.playerNames
-  }, playerId);
-}
-
-function handleSelectSlot(ws, data) {
-  const { roomId, playerId, slotNum } = data;
-  const room = rooms.get(roomId);
+  const opponentId = playerId === 1 ? 2 : 1;
+  const opponentWs = room.clients.get(opponentId);
   
-  if (!room) return;
-  
-  if (room.players[playerId] === slotNum) {
-    delete room.players[playerId];
-    delete room.readyStates[playerId];
-    console.log(`🔓 Player ${playerId} unselected slot ${slotNum}`);
-  } else {
-    const slotTaken = Object.values(room.players).includes(slotNum);
-    if (slotTaken) {
-      ws.send(JSON.stringify({ type: 'error', message: 'Slot already taken' }));
-      return;
-    }
-    
-    if (room.players[playerId]) {
-      delete room.readyStates[playerId];
-    }
-    
-    room.lastActivity = Date.now();
-    room.players[playerId] = slotNum;
-    room.readyStates[playerId] = false;
-    
-    console.log(`🎯 Player ${playerId} → Slot ${slotNum}`);
+  if (opponentWs && opponentWs.readyState === WebSocket.OPEN) {
+    opponentWs.send(JSON.stringify({
+      type: 'playerJoined',
+      players: room.players,
+      readyStates: room.readyStates
+    }));
   }
-  
-  broadcastToRoom(roomId, {
-    type: 'slotSelected',
-    playerId,
-    slotNum,
-    players: room.players,
-    readyStates: room.readyStates,
-    playerNames: room.playerNames
-  });
-}
-
-function handleUpdateName(ws, data) {
-  const { roomId, playerId, name } = data;
-  const room = rooms.get(roomId);
-  
-  if (!room) return;
-  
-  room.lastActivity = Date.now();
-  room.playerNames[playerId] = name;
-  
-  broadcastToRoom(roomId, {
-    type: 'nameUpdated',
-    playerId,
-    name,
-    playerNames: room.playerNames
-  });
 }
 
 function handleToggleReady(ws, data) {
   const { roomId, playerId, isReady } = data;
   const room = rooms.get(roomId);
   
-  if (!room || !room.players[playerId]) return;
+  if (!room) {
+    console.log(`❌ Room ${roomId} not found`);
+    return;
+  }
   
   room.lastActivity = Date.now();
   room.readyStates[playerId] = isReady;
+  const allReady = room.readyStates[1] && room.readyStates[2] && room.players.filter(p => p !== null).length === 2;
   
-  let allReady = false;
-  if (room.roomType === '3player') {
-    const slot1Player = Object.keys(room.players).find(pid => room.players[pid] === 1);
-    const slot2Player = Object.keys(room.players).find(pid => room.players[pid] === 2);
-    allReady = slot1Player && slot2Player && 
-               room.readyStates[slot1Player] && room.readyStates[slot2Player];
-  } else {
-    const slot1Player = Object.keys(room.players).find(pid => room.players[pid] === 1);
-    const slot2Player = Object.keys(room.players).find(pid => room.players[pid] === 2);
-    allReady = slot1Player && slot2Player && 
-               room.readyStates[slot1Player] && room.readyStates[slot2Player];
-  }
+  console.log(`🎯 Player ${playerId} ready: ${isReady}, all ready: ${allReady}`);
   
-  broadcastToRoom(roomId, {
+  const message = {
     type: 'playerReady',
     playerId,
     isReady,
     allReady,
     readyStates: room.readyStates
+  };
+  
+  room.clients.forEach((clientWs, clientPlayerId) => {
+    if (clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(JSON.stringify(message));
+    }
   });
 }
 
 function handleStartGame(data) {
   const { roomId } = data;
-  const room = rooms.get(roomId);
-  if (!room) return;
-  
-  room.gameStarted = true;
-  console.log(`🎮 Game started: ${roomId}`);
+  console.log(`🎮 Game starting: ${roomId}`);
   broadcastToRoom(roomId, { type: 'gameStart' });
-}
-
-function handleWatchGame(ws, data) {
-  const { roomId } = data;
-  const room = rooms.get(roomId);
-  if (!room || !room.gameStarted) return;
-  
-  ws.send(JSON.stringify({ type: 'watchGame', gameStarted: true }));
 }
 
 function handleDeploymentUpdate(data) {
@@ -638,12 +548,16 @@ function handleDeploymentUpdate(data) {
   
   room.lastActivity = Date.now();
   
-  broadcastToRoom(roomId, {
-    type: 'opponentDeploymentUpdate',
-    playerId,
-    piecesPlaced,
-    board
-  }, playerId);
+  const opponentId = playerId === 1 ? 2 : 1;
+  const opponentWs = room.clients.get(opponentId);
+  
+  if (opponentWs) {
+    opponentWs.send(JSON.stringify({
+      type: 'opponentDeploymentUpdate',
+      piecesPlaced,
+      board
+    }));
+  }
 }
 
 function handleSetupComplete(data) {
@@ -653,46 +567,48 @@ function handleSetupComplete(data) {
   
   room.lastActivity = Date.now();
   room.setupComplete[playerId] = true;
+  console.log(`✅ Player ${playerId} setup complete`);
   
-  broadcastToRoom(roomId, {
-    type: 'opponentSetupComplete',
-    playerId
-  }, playerId);
+  const opponentId = playerId === 1 ? 2 : 1;
+  const opponentWs = room.clients.get(opponentId);
   
-  let bothReady = false;
-  if (room.roomType === '3player') {
-    const slot1Player = Object.keys(room.players).find(pid => room.players[pid] === 1);
-    const slot2Player = Object.keys(room.players).find(pid => room.players[pid] === 2);
-    bothReady = slot1Player && slot2Player && 
-                room.setupComplete[slot1Player] && room.setupComplete[slot2Player];
-  } else {
-    const slot1Player = Object.keys(room.players).find(pid => room.players[pid] === 1);
-    const slot2Player = Object.keys(room.players).find(pid => room.players[pid] === 2);
-    bothReady = slot1Player && slot2Player && 
-                room.setupComplete[slot1Player] && room.setupComplete[slot2Player];
+  if (opponentWs) {
+    opponentWs.send(JSON.stringify({
+      type: 'opponentSetupComplete',
+      playerId
+    }));
   }
   
-  if (bothReady) {
+  if (room.setupComplete[1] && room.setupComplete[2]) {
+    console.log(`🎮 Both players ready: ${roomId}`);
     broadcastToRoom(roomId, { type: 'bothPlayersReady' });
   }
 }
 
 function handleMove(data) {
-  const { roomId } = data;
+  const { roomId, playerId } = data;
+  console.log(`♟️  Move by Player ${playerId}`);
+  
   const room = rooms.get(roomId);
   if (!room) return;
   
   room.lastActivity = Date.now();
-  broadcastToRoom(roomId, { type: 'move', ...data });
+  
+  const opponentId = playerId === 1 ? 2 : 1;
+  const opponentWs = room.clients.get(opponentId);
+  if (opponentWs) {
+    opponentWs.send(JSON.stringify({ type: 'move', ...data }));
+  }
 }
 
 function handleGameEnd(data) {
   const { roomId } = data;
+  console.log(`🏆 Game ended: ${roomId}`);
   broadcastToRoom(roomId, { type: 'gameEnd', ...data });
   
   setTimeout(() => {
     rooms.delete(roomId);
-    console.log(`🗑️  Room closed: ${roomId}`);
+    console.log(`🗑️  Room deleted: ${roomId}`);
   }, 5000);
 }
 
@@ -702,22 +618,23 @@ function handleDisconnect(ws) {
   const room = rooms.get(ws.roomId);
   if (!room) return;
   
-  delete room.players[ws.playerId];
+  console.log(`👋 Player ${ws.playerId} left room ${ws.roomId}`);
+  
+  const playerIndex = ws.playerId - 1;
+  room.players[playerIndex] = null;
   room.clients.delete(ws.playerId);
-  delete room.readyStates[ws.playerId];
-  delete room.playerNames[ws.playerId];
+  room.readyStates[ws.playerId] = false;
   room.lastActivity = Date.now();
   
   broadcastToRoom(ws.roomId, {
     type: 'playerLeft',
     playerId: ws.playerId,
-    players: room.players,
-    readyStates: room.readyStates,
-    playerNames: room.playerNames
+    players: room.players
   });
   
-  if (Object.keys(room.players).length === 0) {
+  if (room.players.every(p => p === null)) {
     rooms.delete(ws.roomId);
+    console.log(`🗑️  Empty room deleted: ${ws.roomId}`);
   }
 }
 
@@ -732,29 +649,38 @@ function broadcastToRoom(roomId, message, excludePlayerId = null) {
   });
 }
 
+// Graceful shutdown
 process.on('SIGTERM', () => {
+  console.log('\n⚠️  SIGTERM received, shutting down gracefully...');
+  
   wss.clients.forEach((ws) => {
     ws.close(1000, 'Server shutting down');
   });
   
   wss.close(() => {
+    console.log('✅ WebSocket server closed');
     server.close(() => {
+      console.log('✅ HTTP server closed');
       process.exit(0);
     });
   });
   
   setTimeout(() => {
+    console.error('⚠️  Forced shutdown after timeout');
     process.exit(1);
   }, 10000);
 });
 
 process.on('SIGINT', () => {
+  console.log('\n👋 Shutting down...');
   wss.close(() => {
+    console.log('✅ Server closed');
     process.exit(0);
   });
 });
 
+// Log stats every 5 minutes
 setInterval(() => {
   const uptime = Math.floor((Date.now() - startTime) / 1000 / 60);
-  console.log(`\n📊 ${rooms.size} rooms | ${wss.clients.size} connections | ${uptime}m uptime`);
+  console.log(`\n📊 Stats: ${rooms.size} rooms, ${wss.clients.size} connections, ${uptime}m uptime`);
 }, 5 * 60 * 1000);
