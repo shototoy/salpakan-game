@@ -42,18 +42,10 @@ const WebSocketManager = {
   getDefaultServers() {
     const servers = [
       { 
-        name: 'Legacy Cloud Server', 
+        name: 'Cloud', 
         url: 'wss://salpakan-game.onrender.com', 
         type: 'cloud',
-        enabled: true,
-        version: 'legacy'
-      },
-      { 
-        name: 'New Cloud Server', 
-        url: 'wss://your-new-server.onrender.com', // Update this with your new server URL
-        type: 'cloud',
-        enabled: true,
-        version: 'new'
+        enabled: true 
       }
     ];
     
@@ -68,11 +60,8 @@ const WebSocketManager = {
       return defaults;
     }
 
-    // Merge saved settings with defaults
     return defaults.map(server => {
-      const saved = settings.servers.find(s => 
-        s.type === server.type && s.version === server.version
-      );
+      const saved = settings.servers.find(s => s.type === server.type);
       return saved ? { ...server, enabled: saved.enabled } : server;
     });
   },
@@ -90,8 +79,7 @@ const WebSocketManager = {
             url: `ws://${s.ip}:8080`,
             type: 'manual',
             enabled: true,
-            ip: s.ip,
-            version: 'new' // Local servers use new version
+            ip: s.ip
           };
         });
       
@@ -148,8 +136,7 @@ const WebSocketManager = {
           url: wsUrl,
           type: 'manual',
           enabled: true,
-          ip: ip,
-          version: 'new'
+          ip: ip
         };
         
         this.discoveredServers = [server];
@@ -169,15 +156,12 @@ const WebSocketManager = {
   // ============================================
   
   getServerUrl() {
-    // Prefer new cloud server, fallback to legacy
-    const enabledServers = this.getEnabledServers();
-    const newCloudServer = enabledServers.find(s => s.type === 'cloud' && s.version === 'new');
-    const legacyCloudServer = enabledServers.find(s => s.type === 'cloud' && s.version === 'legacy');
-    
-    return newCloudServer?.url || legacyCloudServer?.url || 'wss://salpakan-game.onrender.com';
+    // Always use cloud server as default
+    return 'wss://salpakan-game.onrender.com';
   },
 
   async getRoomsFromAllServers() {
+    // DON'T run discovery here - it should only happen when user clicks a button!
     const servers = this.getEnabledServers();
     const allRooms = [];
 
@@ -186,7 +170,7 @@ const WebSocketManager = {
     const roomFetchPromises = servers.map(async (server) => {
       try {
         this.log(`Trying ${server.name} at ${server.url}`);
-        const rooms = await this.fetchRoomsFromServer(server.url, server.name, server.version);
+        const rooms = await this.fetchRoomsFromServer(server.url, server.name);
         this.log(`Got ${rooms.length} rooms from ${server.name}`, rooms);
         return rooms;
       } catch (error) {
@@ -202,9 +186,9 @@ const WebSocketManager = {
     return allRooms;
   },
 
-  fetchRoomsFromServer(serverUrl, serverName, serverVersion = 'new') {
+  fetchRoomsFromServer(serverUrl, serverName) {
     return new Promise((resolve, reject) => {
-      this.log(`Fetching rooms from ${serverUrl} (${serverVersion})`);
+      this.log(`Fetching rooms from ${serverUrl}`);
       const ws = new WebSocket(serverUrl);
       
       const timeoutId = setTimeout(() => {
@@ -226,8 +210,7 @@ const WebSocketManager = {
           const roomsWithServer = data.rooms.map(room => ({
             ...room,
             server: serverName,
-            serverUrl: serverUrl,
-            serverVersion: serverVersion
+            serverUrl: serverUrl
           }));
           ws.close();
           resolve(roomsWithServer);
@@ -238,7 +221,7 @@ const WebSocketManager = {
         clearTimeout(timeoutId);
         this.log(`Error fetching rooms from ${serverUrl}`, error);
         ws.close();
-        resolve([]);
+        resolve([]); // Return empty array instead of rejecting
       };
 
       ws.onclose = () => {
@@ -289,67 +272,6 @@ const WebSocketManager = {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       this.log(`Received: ${data.type}`, data);
-      const callback = this.callbacks[data.type];
-      if (callback) {
-        callback(data);
-      } else {
-        this.log(`No handler for ${data.type}`);
-      }
-    };
-
-    ws.onerror = (error) => {
-      clearTimeout(timeout);
-      this.log('Connection error', error);
-    };
-    
-    ws.onclose = (event) => {
-      clearTimeout(timeout);
-      this.log('Connection closed', { code: event.code, reason: event.reason });
-      this.ws = null;
-      this.currentRoomId = null;
-    };
-    
-    return ws;
-  },
-
-  createRoom(roomType = '2player', serverUrl = null) {
-    const url = serverUrl || this.getServerUrl();
-    
-    this.log(`Creating room on ${url} (type: ${roomType})`);
-    
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.log('Closing existing connection');
-      this.ws.close();
-      this.ws = null;
-    }
-
-    this.currentServer = url;
-    
-    const ws = new WebSocket(url);
-    this.ws = ws;
-
-    const timeout = setTimeout(() => {
-      if (ws.readyState !== WebSocket.OPEN) {
-        this.log(`Connection timeout`);
-        ws.close();
-      }
-    }, 10000);
-
-    ws.onopen = () => {
-      clearTimeout(timeout);
-      this.log(`Connection opened, creating ${roomType} room`);
-      ws.send(JSON.stringify({ type: 'createRoom', roomType }));
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      this.log(`Received: ${data.type}`, data);
-      
-      // Store room ID when room is created
-      if (data.type === 'roomCreated' || data.type === 'createRoom') {
-        this.currentRoomId = data.roomId;
-      }
-      
       const callback = this.callbacks[data.type];
       if (callback) {
         callback(data);
