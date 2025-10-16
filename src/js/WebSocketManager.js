@@ -43,7 +43,7 @@ const WebSocketManager = {
     const servers = [
       { 
         name: 'Cloud', 
-        url: 'wss://salpakan-game.onrender.com', 
+        url: 'wss://salpakan-server.onrender.com', 
         type: 'cloud',
         enabled: true 
       }
@@ -157,7 +157,7 @@ const WebSocketManager = {
   
   getServerUrl() {
     // Always use cloud server as default
-    return 'wss://salpakan-game.onrender.com';
+    return 'wss://salpakan-server.onrender.com';
   },
 
   async getRoomsFromAllServers() {
