@@ -15,11 +15,16 @@ const GameModes = {
     getBoardPerspective: (phase, turn, setupPlayer, playerId) => 1,
     
     afterMove: (gameState, setters) => {
-      const { board, defeated } = gameState;
+      const { board, defeated, flagWasChallenged, battleResult } = gameState;
       const { setBoard, setTurn, setMsg, setDefeated, setLastMove, setPhase, setVictoryData, setShowVictory } = setters;
       
+      if (flagWasChallenged && battleResult?.result === 'win') {
+        setMsg('Bonus Turn! Flag defended!');
+        return;
+      }
+      
       setTurn(2);
-      setMsg('Enemy Calculating...');
+      setMsg('AI Calculating...');
       
       setTimeout(() => {
         const aiM = GameLogic.aiMove(board);
@@ -36,7 +41,7 @@ const GameModes = {
         
         if (!aiA) {
           setTurn(1);
-          setMsg('Engage the Enemy');
+          setMsg('Your Turn');
           return;
         }
         
@@ -87,7 +92,7 @@ const GameModes = {
         setDefeated(newDefeated2);
         setLastMove({ from: [ar, ac], to: [tr, tc], turn: 2 });
         setTurn(1);
-        setMsg('Engage the Enemy');
+        setMsg('Your Turn');
       }, 300);
     }
   },
@@ -105,15 +110,22 @@ const GameModes = {
     },
     
     afterMove: (gameState, setters, hasDefender) => {
-      const { turn } = gameState;
-      const { setTurn, setShowTurnLock, setShowingBattleForPlayer, setShowBattleReport } = setters;
+      const { turn, flagWasChallenged, battleResult } = gameState;
+      const { setTurn, setShowTurnLock, setShowingBattleForPlayer, setShowBattleReport, setMsg } = setters;
       
       if (hasDefender) {
-        setShowBattleReport(true);
-        setShowingBattleForPlayer(turn);
+        if (flagWasChallenged && battleResult?.result === 'win') {
+          setShowBattleReport(true);
+          setShowingBattleForPlayer(turn);
+          setMsg(`Commander ${turn} - Bonus Turn!`);
+        } else {
+          setShowBattleReport(true);
+          setShowingBattleForPlayer(turn);
+        }
       } else {
         const nextTurn = turn === 1 ? 2 : 1;
         setTurn(nextTurn);
+        setMsg(`Commander ${nextTurn}'s Turn`);
         setShowTurnLock(true);
       }
     }
@@ -130,20 +142,30 @@ const GameModes = {
     getBoardPerspective: (phase, turn, setupPlayer, playerId) => playerId,
     
     afterMove: (gameState, setters, hasDefender, WebSocketManager, roomId) => {
-      const { board, turn, defeated, lastMove, battleResult } = gameState;
-      const { setTurn } = setters;
+      const { board, turn, defeated, lastMove, battleResult, flagWasChallenged } = gameState;
+      const { setTurn, setMsg } = setters;
+      
+      const nextTurn = (flagWasChallenged && battleResult?.result === 'win') ? turn : (turn === 1 ? 2 : 1);
       
       WebSocketManager.send({
         type: 'move',
         roomId,
         playerId: turn,
         board,
-        turn: turn === 1 ? 2 : 1,
+        turn: nextTurn,
         lastMove,
         battleResult: hasDefender ? battleResult : null,
-        defeated
+        defeated,
+        bonusTurn: flagWasChallenged && battleResult?.result === 'win'
       });
-      setTurn(turn === 1 ? 2 : 1);
+      
+      setTurn(nextTurn);
+      
+      if (flagWasChallenged && battleResult?.result === 'win' && nextTurn === turn) {
+        setMsg('Bonus Turn! Flag defended!');
+      } else {
+        setMsg(nextTurn === turn ? 'Your Turn' : 'Opponent Turn');
+      }
     }
   }
 };

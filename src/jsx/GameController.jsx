@@ -18,9 +18,18 @@ import {
   TurnLockModal
 } from './components';
 
+// ============================================
+// MAIN COMPONENT
+// ============================================
+
 export default function GameController() {
   const playerIdRef = useRef(null);
   const longPressTimer = useRef(null);
+
+  // ============================================
+  // STATE - SCREEN & GAME
+  // ============================================
+  
   const [screen, setScreen] = useState('home');
   const [board, setBoard] = useState(GameLogic.initBoard());
   const [phase, setPhase] = useState('setup');
@@ -29,19 +38,38 @@ export default function GameController() {
   const [sel, setSel] = useState(null);
   const [moves, setMoves] = useState([]);
   const [msg, setMsg] = useState('Choose Mode');
+  
+  // ============================================
+  // STATE - UI & SETTINGS
+  // ============================================
+  
   const [devMode, setDevMode] = useState(false);
   const [useSVG, setUseSVG] = useState(true);
   const [omniscience, setOmniscience] = useState(false);
-  const [setupPlayer, setSetupPlayer] = useState(1);
-  const [inventory, setInventory] = useState({});
   const [showPicker, setShowPicker] = useState(null);
   const [showTurnLock, setShowTurnLock] = useState(false);
   const [pausePhase, setPausePhase] = useState(false);
+  const [showBattleReport, setShowBattleReport] = useState(false);
+  const [showVictory, setShowVictory] = useState(false);
+  const [flaggedPiece, setFlaggedPiece] = useState(null);
+  
+  // ============================================
+  // STATE - SETUP & BATTLE
+  // ============================================
+  
+  const [setupPlayer, setSetupPlayer] = useState(1);
+  const [inventory, setInventory] = useState({});
   const [battleResult, setBattleResult] = useState(null);
   const [defeated, setDefeated] = useState({ 1: [], 2: [] });
-  const [showBattleReport, setShowBattleReport] = useState(false);
   const [lastMove, setLastMove] = useState(null);
   const [showingBattleForPlayer, setShowingBattleForPlayer] = useState(null);
+  const [victoryData, setVictoryData] = useState(null);
+  const [flagAtEndZone, setFlagAtEndZone] = useState(null);
+  
+  // ============================================
+  // STATE - MULTIPLAYER
+  // ============================================
+  
   const [roomId, setRoomId] = useState('');
   const [multiplayerMode, setMultiplayerMode] = useState(null);
   const [playerId, setPlayerId] = useState(null);
@@ -53,10 +81,11 @@ export default function GameController() {
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [opponentPiecesPlaced, setOpponentPiecesPlaced] = useState(0);
   const [opponentLastSelected, setOpponentLastSelected] = useState(null);
-  const [showVictory, setShowVictory] = useState(false);
-  const [victoryData, setVictoryData] = useState(null);
-  const [flaggedPiece, setFlaggedPiece] = useState(null);
   const [selectedServerUrl, setSelectedServerUrl] = useState(null);
+
+  // ============================================
+  // EFFECT - ROOM POLLING
+  // ============================================
 
   useEffect(() => {
     if (screen === 'multiplayer') {
@@ -67,15 +96,19 @@ export default function GameController() {
 
       fetchRooms();
       const interval = setInterval(fetchRooms, 3000);
-
       return () => clearInterval(interval);
     } else if (screen !== 'room' && screen !== 'onlineGame') {
       setAvailableRooms([]);
     }
   }, [screen]);
 
+  // ============================================
+  // EFFECT - WEBSOCKET HANDLERS
+  // ============================================
+
   useEffect(() => {
     if ((screen === 'room' || screen === 'onlineGame') && roomId) {
+      
       const handleRoomJoined = (data) => {
         const myId = data.playerId;
         playerIdRef.current = myId;
@@ -246,6 +279,10 @@ export default function GameController() {
     }
   }, [screen, roomId, selectedServerUrl]);
 
+  // ============================================
+  // HANDLERS - LONG PRESS
+  // ============================================
+
   const handleCellPress = (r, c) => {
     if (phase !== 'playing') return;
     const cell = board[r][c];
@@ -262,6 +299,10 @@ export default function GameController() {
       longPressTimer.current = null;
     }
   };
+
+  // ============================================
+  // GAME LOGIC - RESET
+  // ============================================
 
   const resetGame = useCallback(() => {
     setScreen('home');
@@ -288,8 +329,13 @@ export default function GameController() {
     setOpponentReadyState(false);
     setShowVictory(false);
     setVictoryData(null);
+    setFlagAtEndZone(null);
     WebSocketManager.disconnect();
   }, []);
+
+  // ============================================
+  // GAME LOGIC - SETUP
+  // ============================================
 
   const startSetup = (m, mp = null) => {
     setMode(m);
@@ -452,10 +498,38 @@ export default function GameController() {
     }
   };
 
-  const handlePlayClick = (r, c) => {
+  // ============================================
+  // GAME LOGIC - PLAY PHASE
+  // ============================================
+
+const handlePlayClick = (r, c) => {
     const modeHandler = mode === 'ai' ? GameModes.ai : (multiplayerMode === 'online' ? GameModes.online : GameModes.local);
     
     if (!modeHandler.canMove(turn, playerId)) return;
+    
+    if (flagAtEndZone && flagAtEndZone.player === turn) {
+      const [flagR, flagC] = flagAtEndZone.position;
+      const flagStillThere = board[flagR][flagC]?.r === 'FLAG' && board[flagR][flagC]?.p === flagAtEndZone.player;
+      
+      if (flagStillThere) {
+        setPhase('ended');
+        setVictoryData({ winner: flagAtEndZone.player, victoryType: 'flag_reached_end' });
+        setShowVictory(true);
+        setFlagAtEndZone(null);
+        if (multiplayerMode === 'online') {
+          WebSocketManager.send({
+            type: 'gameEnd',
+            roomId,
+            winner: flagAtEndZone.player,
+            victoryType: 'flag_reached_end',
+            message: `Victory - Commander ${flagAtEndZone.player}! Flag reached enemy territory!`
+          });
+        }
+        return;
+      } else {
+        setFlagAtEndZone(null);
+      }
+    }
     
     if (!sel) {
       if (board[r][c]?.p === turn) {
@@ -474,9 +548,21 @@ export default function GameController() {
         const defender = nb[r][c];
         const newDefeated = { ...defeated };
         let newBattleResult = null;
+        let flagWasChallenged = false;
+        
+        if (flagAtEndZone && defender && defender.r === 'FLAG' && 
+            r === flagAtEndZone.position[0] && c === flagAtEndZone.position[1]) {
+          flagWasChallenged = true;
+        }
         
         if (defender) {
-          const res = GameLogic.battle(attacker, defender);
+          let res;
+          
+          if (attacker.r === 'FLAG' && defender.r === 'FLAG') {
+            res = 'win';
+          } else {
+            res = GameLogic.battle(attacker, defender);
+          }
           
           if (res === 'win') {
             nb[r][c] = attacker;
@@ -490,14 +576,15 @@ export default function GameController() {
               setSel(null);
               setDefeated(newDefeated);
               setPhase('ended');
-              setVictoryData({ winner: turn, victoryType: 'flag_captured' });
+              setFlagAtEndZone(null);
+              setVictoryData({ winner: turn, victoryType: flagWasChallenged ? 'flag_challenged' : 'flag_captured' });
               setShowVictory(true);
               if (multiplayerMode === 'online') {
                 WebSocketManager.send({
                   type: 'gameEnd',
                   roomId,
                   winner: turn,
-                  victoryType: 'flag_captured',
+                  victoryType: flagWasChallenged ? 'flag_challenged' : 'flag_captured',
                   message: `Victory - Commander ${turn}!`
                 });
               }
@@ -514,7 +601,7 @@ export default function GameController() {
               setSel(null);
               setDefeated(newDefeated);
               setPhase('ended');
-              const loser = turn;
+              setFlagAtEndZone(null);
               const winner = turn === 1 ? 2 : 1;
               setVictoryData({ winner, victoryType: 'flag_defeated' });
               setShowVictory(true);
@@ -542,7 +629,7 @@ export default function GameController() {
               setSel(null);
               setDefeated(newDefeated);
               setPhase('ended');
-              const loser = turn;
+              setFlagAtEndZone(null);
               const winner = turn === 1 ? 2 : 1;
               setVictoryData({ winner, victoryType: 'flag_defeated' });
               setShowVictory(true);
@@ -560,9 +647,21 @@ export default function GameController() {
           }
           setDefeated(newDefeated);
           setBattleResult(newBattleResult);
+          
+          if (flagWasChallenged) {
+            setFlagAtEndZone(null);
+          }
         } else {
           nb[r][c] = attacker;
           nb[sr][sc] = null;
+          
+          if (attacker.r === 'FLAG') {
+            const flagReachedEnd = (attacker.p === 1 && r === 0) || (attacker.p === 2 && r === 7);
+            
+            if (flagReachedEnd) {
+              setFlagAtEndZone({ position: [r, c], player: attacker.p });
+            }
+          }
         }
         
         setBoard(nb);
@@ -643,6 +742,10 @@ export default function GameController() {
     }
   };
 
+  // ============================================
+  // MULTIPLAYER - ROOM MANAGEMENT
+  // ============================================
+
   const createRoom = (serverUrl = null) => {
     const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     setRoomId(newRoomId);
@@ -689,6 +792,10 @@ export default function GameController() {
       roomId
     });
   };
+
+  // ============================================
+  // RENDER - SCREENS
+  // ============================================
 
   if (screen === 'home') {
     return <HomeScreen 
@@ -792,6 +899,7 @@ export default function GameController() {
           <VictoryModal 
             winner={victoryData.winner}
             victoryType={victoryData.victoryType}
+            playerId={multiplayerMode === 'online' ? playerId : (mode === 'ai' ? 1 : null)}
             onBackToHome={resetGame}
           />
         )}
