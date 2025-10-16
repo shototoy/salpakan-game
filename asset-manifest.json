@@ -1,16 +1,16 @@
 {
   "files": {
-    "main.css": "/salpakan-game/static/css/main.5cedf42c.css",
-    "main.js": "/salpakan-game/static/js/main.fbdb0595.js",
-    "static/js/753.63e68742.chunk.js": "/salpakan-game/static/js/753.63e68742.chunk.js",
-    "static/media/imperium.svg": "/salpakan-game/static/media/imperium.23bbe946aa42ff6938effb9cdd6b35ed.svg",
-    "index.html": "/salpakan-game/index.html",
-    "main.5cedf42c.css.map": "/salpakan-game/static/css/main.5cedf42c.css.map",
-    "main.fbdb0595.js.map": "/salpakan-game/static/js/main.fbdb0595.js.map",
-    "753.63e68742.chunk.js.map": "/salpakan-game/static/js/753.63e68742.chunk.js.map"
+    "main.css": "/static/css/main.5457c294.css",
+    "main.js": "/static/js/main.d662a58a.js",
+    "static/js/753.63e68742.chunk.js": "/static/js/753.63e68742.chunk.js",
+    "static/media/imperium.svg": "/static/media/imperium.23bbe946aa42ff6938effb9cdd6b35ed.svg",
+    "index.html": "/index.html",
+    "main.5457c294.css.map": "/static/css/main.5457c294.css.map",
+    "main.d662a58a.js.map": "/static/js/main.d662a58a.js.map",
+    "753.63e68742.chunk.js.map": "/static/js/753.63e68742.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.5cedf42c.css",
-    "static/js/main.fbdb0595.js"
+    "static/css/main.5457c294.css",
+    "static/js/main.d662a58a.js"
   ]
 }
