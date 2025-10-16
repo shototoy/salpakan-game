@@ -7,7 +7,7 @@ import React, { useMemo, useState } from 'react';
 export default function RoomWaiting({ 
   roomId, onLeave, onStart, onToggleReady, players, isReady, myReady, 
   opponentReady, playerId, connectionStatus, roomType, onSelectSlot, 
-  playerNames, onUpdateName 
+  playerNames, onUpdateName, hostId 
 }) {
   const [nameInput, setNameInput] = useState('');
   const isThreePlayer = roomType === '3player';
@@ -38,6 +38,7 @@ export default function RoomWaiting({
 
   const mySlot = players && players[playerId] ? players[playerId] : null;
   const isObserver = isThreePlayer && mySlot === 3;
+  const isHost = hostId && playerId && hostId === playerId;
   const playerCount = players && typeof players === 'object' ? Object.keys(players).length : 0;
 
   const handleToggleReady = () => {
@@ -91,7 +92,7 @@ export default function RoomWaiting({
   };
 
   const canStartGame = () => {
-    if (!mySlot || mySlot === 3) return false;
+    if (!isHost) return false;
     
     const slot1Player = Object.keys(players).find(pid => players[pid] === 1);
     const slot2Player = Object.keys(players).find(pid => players[pid] === 2);
@@ -130,6 +131,11 @@ export default function RoomWaiting({
               {isThreePlayer && (
                 <div className="text-xs uppercase tracking-wider text-violet-400" style={{ fontFamily: 'Courier New, monospace' }}>
                   👁️ 3-PLAYER
+                </div>
+              )}
+              {isHost && (
+                <div className="text-xs uppercase tracking-wider text-yellow-500" style={{ fontFamily: 'Courier New, monospace' }}>
+                  👑 HOST
                 </div>
               )}
             </div>
@@ -171,6 +177,7 @@ export default function RoomWaiting({
               const slotNum = idx + 1;
               const hasPlayer = pid !== null;
               const isMe = hasPlayer && pid === playerId;
+              const isSlotHost = hasPlayer && pid === hostId;
               const status = getReadyStatus(slotNum);
               const isObserverSlot = isThreePlayer && slotNum === 3;
               const canSelect = connectionStatus === 'connected';
@@ -185,6 +192,7 @@ export default function RoomWaiting({
                   } ${canSelect && !hasPlayer ? 'border-2 border-dashed border-zinc-700 hover:border-zinc-600' : hasPlayer && isMe ? 'border border-zinc-600' : 'border border-zinc-800'}`}>
                   <div className="flex flex-col items-start">
                     <span className={`text-sm uppercase tracking-wider font-bold ${isObserverSlot ? 'text-violet-300' : 'text-zinc-200'}`} style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
+                      {isSlotHost && '👑 '}
                       {isObserverSlot ? '👁️' : '⚔️'} {getSlotLabel(slotNum)} {isMe ? '(YOU)' : ''}
                     </span>
                     {hasPlayer && playerNames && playerNames[pid] && (
@@ -236,6 +244,12 @@ export default function RoomWaiting({
                 style={{ fontFamily: 'Impact, "Arial Black", sans-serif' }}>
                 ⚔ START BATTLE
               </button>
+            )}
+
+            {!isHost && mySlot && !isObserver && (
+              <div className="text-xs text-zinc-600 text-center mt-2" style={{ fontFamily: 'Courier New, monospace' }}>
+                Waiting for host to start...
+              </div>
             )}
           </div>
         </div>

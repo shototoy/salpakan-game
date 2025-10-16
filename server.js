@@ -23,11 +23,15 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url === '/discover') {
-    const roomList = Array.from(rooms.entries()).map(([id, room]) => ({
-      id,
-      players: Object.keys(room.players).length,
-      roomType: room.roomType
-    }));
+    const roomList = Array.from(rooms.entries()).map(([id, room]) => {
+      const playerCount = Object.keys(room.players).length;
+      return {
+        id,
+        players: playerCount,
+        roomType: room.roomType,
+        gameStarted: room.gameStarted || false
+      };
+    });
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -38,254 +42,6 @@ const server = http.createServer((req, res) => {
       rooms: roomList,
       timestamp: Date.now()
     }));
-    return;
-  }
-
-  if (req.url === '/' || req.url === '/status') {
-    const roomList = Array.from(rooms.entries()).map(([id, room]) => ({
-      id,
-      players: Object.keys(room.players).length,
-      maxPlayers: room.roomType === '3player' ? 3 : 2,
-      roomType: room.roomType
-    }));
-
-    const totalPlayers = roomList.reduce((sum, r) => sum + r.players, 0);
-    const serverType = isProduction ? 'Cloud (Render)' : 'Local';
-
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(`
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Salpakan Server - ${serverType}</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Courier New', monospace;
-      background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
-      color: #fbbf24;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    .container {
-      background: rgba(0, 0, 0, 0.8);
-      border: 4px solid #ca8a04;
-      border-radius: 12px;
-      padding: 40px;
-      max-width: 600px;
-      text-align: center;
-      box-shadow: 0 20px 60px rgba(251, 191, 36, 0.3);
-    }
-    h1 {
-      font-size: 36px;
-      margin-bottom: 10px;
-      text-transform: uppercase;
-      letter-spacing: 3px;
-    }
-    .status {
-      color: #10b981;
-      font-size: 18px;
-      margin-bottom: 30px;
-    }
-    .server-type {
-      background: ${isProduction ? 'linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%)' : 'linear-gradient(135deg, #3b82f6 0%, #1e3a8a 100%)'};
-      border: 2px solid ${isProduction ? '#a78bfa' : '#60a5fa'};
-      border-radius: 8px;
-      padding: 15px;
-      margin: 20px 0;
-      font-size: 20px;
-      font-weight: bold;
-    }
-    .ip-box {
-      background: #000;
-      border: 2px solid #fbbf24;
-      border-radius: 8px;
-      padding: 20px;
-      margin: 30px 0;
-    }
-    .ip-label {
-      font-size: 14px;
-      opacity: 0.7;
-      margin-bottom: 10px;
-    }
-    .ip-address {
-      font-size: ${isProduction ? '24px' : '48px'};
-      font-weight: bold;
-      color: #fbbf24;
-      letter-spacing: 2px;
-      text-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
-      word-break: break-all;
-    }
-    .info {
-      background: rgba(59, 130, 246, 0.1);
-      border: 1px solid #3b82f6;
-      border-radius: 6px;
-      padding: 15px;
-      margin-top: 20px;
-      font-size: 14px;
-      color: #93c5fd;
-      text-align: left;
-    }
-    .stats {
-      display: flex;
-      justify-content: space-around;
-      margin-top: 30px;
-      gap: 20px;
-    }
-    .stat {
-      flex: 1;
-    }
-    .stat-value {
-      font-size: 32px;
-      font-weight: bold;
-    }
-    .stat-label {
-      font-size: 12px;
-      opacity: 0.7;
-      margin-top: 5px;
-    }
-    .rooms-list {
-      margin-top: 20px;
-      max-height: 200px;
-      overflow-y: auto;
-      background: rgba(0, 0, 0, 0.5);
-      border-radius: 6px;
-      padding: 10px;
-    }
-    .room-item {
-      background: rgba(251, 191, 36, 0.1);
-      border: 1px solid #fbbf24;
-      border-radius: 4px;
-      padding: 8px;
-      margin: 5px 0;
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-    }
-    .uptime {
-      font-size: 12px;
-      opacity: 0.6;
-      margin-top: 20px;
-    }
-  </style>
-</head>
-<body>  
-  <div class="container">
-    <h1>🎮 SALPAKAN</h1>
-    <div class="status">● SERVER RUNNING</div>
-    
-    <div class="server-type">
-      ${isProduction ? '☁️ CLOUD SERVER (Render)' : '🏠 LOCAL SERVER'}
-    </div>
-
-    ${isProduction ? `
-    <div class="ip-box">
-      <div class="ip-label">WEBSOCKET URL</div>
-      <div class="ip-address">wss://salpakan-game.onrender.com</div>
-    </div>
-
-    <div class="info">
-      💡 <strong>How to connect:</strong><br>
-      1. Open Salpakan game on your phone or computer<br>
-      2. The cloud server is automatically available<br>
-      3. Create or join rooms from the multiplayer lobby<br>
-      <br>
-      <strong>Note:</strong> This is a free Render instance. It may sleep after 15 minutes of inactivity and take ~30 seconds to wake up on first connection.
-    </div>
-    ` : `
-    <div class="ip-box">
-      <div class="ip-label">SERVER IP ADDRESS</div>
-      <div class="ip-address">${localIP}</div>
-    </div>
-
-    <div class="info">
-      💡 <strong>To connect:</strong><br>
-      1. Make sure your device is on the same WiFi network<br>
-      2. Open Salpakan game on your phone<br>
-      3. Go to Settings → Add Local Server<br>
-      4. Enter this IP: <strong>${localIP}</strong>
-    </div>
-    `}
-
-    <div class="stats">
-      <div class="stat">
-        <div class="stat-value" id="rooms">${roomList.length}</div>
-        <div class="stat-label">Active Rooms</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value" id="players">${totalPlayers}</div>
-        <div class="stat-label">Players Online</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value" id="connections">${wss.clients.size}</div>
-        <div class="stat-label">Connections</div>
-      </div>
-    </div>
-
-    <div class="rooms-list" id="roomsList">
-      ${roomList.length > 0 ? roomList.map(room => `
-        <div class="room-item">
-          <span>Room: ${room.id} ${room.roomType === '3player' ? '👁️' : '⚔️'}</span>
-          <span>Players: ${room.players}/${room.maxPlayers}</span>
-        </div>
-      `).join('') : '<div style="opacity: 0.5; padding: 20px;">No active rooms</div>'}
-    </div>
-
-    <div class="uptime" id="uptime">Uptime: 0s</div>
-  </div>
-
-  <script>
-    const startTime = Date.now();
-    
-    function updateStats() {
-      fetch('/discover')
-        .then(r => r.json())
-        .then(data => {
-          document.getElementById('rooms').textContent = data.rooms.length;
-          const totalPlayers = data.rooms.reduce((sum, r) => sum + r.players, 0);
-          document.getElementById('players').textContent = totalPlayers;
-          
-          const roomsList = document.getElementById('roomsList');
-          if (data.rooms.length > 0) {
-            roomsList.innerHTML = data.rooms.map(room => {
-              const maxPlayers = room.roomType === '3player' ? 3 : 2;
-              const icon = room.roomType === '3player' ? '👁️' : '⚔️';
-              return \`
-                <div class="room-item">
-                  <span>Room: \${room.id} \${icon}</span>
-                  <span>Players: \${room.players}/\${maxPlayers}</span>
-                </div>
-              \`;
-            }).join('');
-          } else {
-            roomsList.innerHTML = '<div style="opacity: 0.5; padding: 20px;">No active rooms</div>';
-          }
-        })
-        .catch(() => {});
-    }
-
-    function updateUptime() {
-      const uptime = Math.floor((Date.now() - startTime) / 1000);
-      const hours = Math.floor(uptime / 3600);
-      const minutes = Math.floor((uptime % 3600) / 60);
-      const seconds = uptime % 60;
-      document.getElementById('uptime').textContent = 
-        \`Uptime: \${hours}h \${minutes}m \${seconds}s\`;
-    }
-
-    setInterval(updateStats, 2000);
-    setInterval(updateUptime, 1000);
-    updateStats();
-    updateUptime();
-  </script>
-</body>
-</html>
-    `);
     return;
   }
 
@@ -323,17 +79,10 @@ console.log('='.repeat(60));
 console.log(`\n📍  Server Type: ${isProduction ? 'CLOUD (Render)' : 'LOCAL'}`);
 if (!isProduction) {
   console.log(`📍  Server IP: ${localIP}`);
-  console.log(`\n📱  To connect from your phone:`);
-  console.log(`    1. Connect to the same WiFi network`);
-  console.log(`    2. Open Salpakan → Settings → Add Local Server`);
-  console.log(`    3. Enter IP: ${localIP}\n`);
-  console.log(`🌐  Status page: http://${localIP}:${port}`);
   console.log(`🔌  WebSocket: ws://${localIP}:${port}`);
 } else {
-  console.log(`🌐  Status page: https://salpakan-game.onrender.com`);
   console.log(`🔌  WebSocket: wss://salpakan-game.onrender.com`);
 }
-console.log(`🔍  Discovery: /discover endpoint available`);
 console.log('='.repeat(60) + '\n');
 
 server.listen(port, '0.0.0.0', () => {
@@ -348,7 +97,7 @@ setInterval(() => {
     if (!room.lastActivity) room.lastActivity = now;
     
     if (now - room.lastActivity > 30 * 60 * 1000) {
-      const hasPlayers = Object.keys(room.players).length > 0;
+      const hasPlayers = room.clients.size > 0;
       if (!hasPlayers) {
         rooms.delete(roomId);
         console.log(`🗑️  Cleaned up room: ${roomId}`);
@@ -390,7 +139,6 @@ wss.on('connection', (ws, req) => {
         case 'move': handleMove(data); break;
         case 'gameEnd': handleGameEnd(data); break;
         case 'updateName': handleUpdateName(ws, data); break;
-        case 'watchGame': handleWatchGame(ws, data); break;
       }
     } catch (error) {
       console.error('❌ Error:', error);
@@ -424,7 +172,7 @@ function handleGetRooms(ws) {
     return {
       id,
       players: playerCount,
-      isFull: false,
+      isFull: playerCount >= maxPlayers,
       roomType: room.roomType,
       gameStarted: room.gameStarted || false
     };
@@ -433,9 +181,31 @@ function handleGetRooms(ws) {
   ws.send(JSON.stringify({ type: 'roomList', rooms: roomList }));
 }
 
+function broadcastRoomListUpdate() {
+  const roomList = Array.from(rooms.entries()).map(([id, room]) => {
+    const maxPlayers = room.roomType === '3player' ? 3 : 2;
+    const playerCount = Object.keys(room.players).length;
+    return {
+      id,
+      players: playerCount,
+      isFull: playerCount >= maxPlayers,
+      roomType: room.roomType,
+      gameStarted: room.gameStarted || false
+    };
+  });
+  
+  wss.clients.forEach((ws) => {
+    if (ws.readyState === WebSocket.OPEN && !ws.roomId) {
+      ws.send(JSON.stringify({ type: 'roomList', rooms: roomList }));
+    }
+  });
+}
+
 function handleCreateRoom(ws, data) {
   const { roomType = '2player' } = data;
   const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+  
+  let playerId = 1;
   
   const room = {
     roomType,
@@ -445,32 +215,35 @@ function handleCreateRoom(ws, data) {
     setupComplete: {},
     playerNames: {},
     gameStarted: false,
-    lastActivity: Date.now()
+    lastActivity: Date.now(),
+    hostId: playerId
   };
   
   rooms.set(roomId, room);
   
-  let playerId = 1;
   room.clients.set(playerId, ws);
   ws.roomId = roomId;
   ws.playerId = playerId;
   ws.isAlive = true;
   
-  console.log(`🆕 Room ${roomId} (${roomType}) - Creator P${playerId}`);
+  console.log(`🆕 Room ${roomId} (${roomType}) - Host P${playerId}`);
   
   ws.send(JSON.stringify({
     type: 'roomCreated',
     roomId,
     roomType,
     playerId,
+    hostId: playerId,
     players: room.players,
     readyStates: room.readyStates,
     playerNames: room.playerNames
   }));
+  
+  broadcastRoomListUpdate();
 }
 
 function handleJoin(ws, data) {
-  const { roomId, playerId: requestedPlayerId } = data;
+  const { roomId } = data;
   
   if (!rooms.has(roomId)) {
     ws.send(JSON.stringify({ type: 'error', message: 'Room not found' }));
@@ -480,12 +253,13 @@ function handleJoin(ws, data) {
   const room = rooms.get(roomId);
   room.lastActivity = Date.now();
   
-  if (ws.playerId && ws.roomId === roomId) {
+  if (ws.playerId && ws.roomId === roomId && room.clients.has(ws.playerId)) {
     console.log(`♻️ Player ${ws.playerId} reconnecting to ${roomId}`);
     ws.send(JSON.stringify({
       type: 'roomJoined',
       roomId,
       playerId: ws.playerId,
+      hostId: room.hostId,
       players: room.players,
       readyStates: room.readyStates,
       roomType: room.roomType,
@@ -512,6 +286,7 @@ function handleJoin(ws, data) {
     type: 'roomJoined',
     roomId,
     playerId,
+    hostId: room.hostId,
     players: room.players,
     readyStates: room.readyStates,
     roomType: room.roomType,
@@ -521,10 +296,14 @@ function handleJoin(ws, data) {
   
   broadcastToRoom(roomId, {
     type: 'playerJoined',
+    playerId,
+    hostId: room.hostId,
     players: room.players,
     readyStates: room.readyStates,
     playerNames: room.playerNames
   }, playerId);
+  
+  broadcastRoomListUpdate();
 }
 
 function handleSelectSlot(ws, data) {
@@ -559,10 +338,13 @@ function handleSelectSlot(ws, data) {
     type: 'slotSelected',
     playerId,
     slotNum,
+    hostId: room.hostId,
     players: room.players,
     readyStates: room.readyStates,
     playerNames: room.playerNames
   });
+  
+  broadcastRoomListUpdate();
 }
 
 function handleUpdateName(ws, data) {
@@ -620,15 +402,9 @@ function handleStartGame(data) {
   
   room.gameStarted = true;
   console.log(`🎮 Game started: ${roomId}`);
-  broadcastToRoom(roomId, { type: 'gameStart' });
-}
-
-function handleWatchGame(ws, data) {
-  const { roomId } = data;
-  const room = rooms.get(roomId);
-  if (!room || !room.gameStarted) return;
   
-  ws.send(JSON.stringify({ type: 'watchGame', gameStarted: true }));
+  broadcastToRoom(roomId, { type: 'gameStart' });
+  broadcastRoomListUpdate();
 }
 
 function handleDeploymentUpdate(data) {
@@ -693,6 +469,7 @@ function handleGameEnd(data) {
   setTimeout(() => {
     rooms.delete(roomId);
     console.log(`🗑️  Room closed: ${roomId}`);
+    broadcastRoomListUpdate();
   }, 5000);
 }
 
@@ -702,23 +479,40 @@ function handleDisconnect(ws) {
   const room = rooms.get(ws.roomId);
   if (!room) return;
   
-  delete room.players[ws.playerId];
-  room.clients.delete(ws.playerId);
-  delete room.readyStates[ws.playerId];
-  delete room.playerNames[ws.playerId];
+  const leavingPlayerId = ws.playerId;
+  const wasInSlot = room.players[leavingPlayerId] !== undefined;
+  
+  delete room.players[leavingPlayerId];
+  room.clients.delete(leavingPlayerId);
+  delete room.readyStates[leavingPlayerId];
+  delete room.playerNames[leavingPlayerId];
   room.lastActivity = Date.now();
+  
+  if (room.hostId === leavingPlayerId) {
+    const remainingPlayers = Array.from(room.clients.keys());
+    if (remainingPlayers.length > 0) {
+      room.hostId = Math.min(...remainingPlayers);
+      console.log(`👑 Host transferred to Player ${room.hostId} in ${ws.roomId}`);
+    }
+  }
+  
+  console.log(`➖ Player ${leavingPlayerId} left ${ws.roomId}`);
   
   broadcastToRoom(ws.roomId, {
     type: 'playerLeft',
-    playerId: ws.playerId,
+    playerId: leavingPlayerId,
+    hostId: room.hostId,
     players: room.players,
     readyStates: room.readyStates,
     playerNames: room.playerNames
   });
   
-  if (Object.keys(room.players).length === 0) {
+  if (room.clients.size === 0) {
     rooms.delete(ws.roomId);
+    console.log(`🗑️  Room ${ws.roomId} closed (empty)`);
   }
+  
+  broadcastRoomListUpdate();
 }
 
 function broadcastToRoom(roomId, message, excludePlayerId = null) {

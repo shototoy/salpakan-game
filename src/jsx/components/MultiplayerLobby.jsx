@@ -5,21 +5,16 @@
 import React, { useState, useEffect } from 'react';
 import ServerSettings from './ServerSettings';
 
-export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roomId, setRoomId, WebSocketManager, onRefreshRooms }) {
+export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roomId, setRoomId, WebSocketManager, availableRooms }) {
   const [showSettings, setShowSettings] = useState(false);
   const [showServerSelect, setShowServerSelect] = useState(false);
   const [showRoomConfig, setShowRoomConfig] = useState(false);
   const [selectedServer, setSelectedServer] = useState(null);
-  const [roomType, setRoomType] = useState('2player');
-  const [availableRooms, setAvailableRooms] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [enabledServers, setEnabledServers] = useState([]);
 
   useEffect(() => {
     loadEnabledServers();
-    fetchAllRooms();
-    const interval = setInterval(fetchAllRooms, 2000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadEnabledServers = () => {
@@ -34,21 +29,15 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
     setEnabledServers(uniqueServers);
   };
 
-  const fetchAllRooms = async () => {
+  const handleRefresh = async () => {
     setIsLoading(true);
-    
     try {
-      const rooms = await WebSocketManager.getRoomsFromAllServers();
-      setAvailableRooms(rooms);
+      await WebSocketManager.getRoomsFromAllServers();
     } catch (error) {
-      console.error('Failed to fetch rooms:', error);
+      console.error('Failed to refresh rooms:', error);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleRefresh = () => {
-    fetchAllRooms();
   };
 
   const handleCreateRoom = (serverUrl, type) => {
@@ -209,7 +198,7 @@ export default function MultiplayerLobby({ onBack, onCreateRoom, onJoinRoom, roo
                     <div className="py-1 px-1.5">
                       {availableRooms.map((room, idx) => {
                         const info = getServerTypeInfo({ 
-                          type: room.server.includes('Cloud') ? 'cloud' : 'manual'
+                          type: room.server?.includes('Cloud') ? 'cloud' : 'manual'
                         });
                         const maxPlayers = room.roomType === '3player' ? 3 : 2;
                         const roomTypeIcon = room.roomType === '3player' ? '👁️' : '⚔️';

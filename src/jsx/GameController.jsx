@@ -45,7 +45,7 @@ export default function GameController() {
   const [roomId, setRoomId] = useState('');
   const [multiplayerMode, setMultiplayerMode] = useState(null);
   const [playerId, setPlayerId] = useState(null);
-  const [players, setPlayers] = useState([null, null]);
+  const [players, setPlayers] = useState({});
   const [isRoomReady, setIsRoomReady] = useState(false);
   const [myReadyState, setMyReadyState] = useState(false);
   const [opponentReadyState, setOpponentReadyState] = useState(false);
@@ -59,6 +59,7 @@ export default function GameController() {
   const [selectedServerUrl, setSelectedServerUrl] = useState(null);
   const [roomType, setRoomType] = useState('2player');
   const [playerNames, setPlayerNames] = useState({});
+  const [hostId, setHostId] = useState(null);
 
   // ============================================
   // SLOT & NAME MANAGEMENT
@@ -88,15 +89,22 @@ export default function GameController() {
   
   useEffect(() => {
     if (screen === 'multiplayer') {
+      const handleRoomListUpdate = (data) => {
+        setAvailableRooms(data.rooms.filter(room => !room.isFull));
+      };
+
+      WebSocketManager.on('roomList', handleRoomListUpdate);
+      
       const fetchRooms = async () => {
         const rooms = await WebSocketManager.getRoomsFromAllServers();
         setAvailableRooms(rooms.filter(room => !room.isFull));
       };
 
       fetchRooms();
-      const interval = setInterval(fetchRooms, 3000);
 
-      return () => clearInterval(interval);
+      return () => {
+        WebSocketManager.off('roomList');
+      };
     } else if (screen !== 'room' && screen !== 'onlineGame') {
       setAvailableRooms([]);
     }
@@ -108,78 +116,104 @@ export default function GameController() {
 
   useEffect(() => {
     if ((screen === 'room' || screen === 'onlineGame')) {
-    const handleRoomCreated = (data) => {
-      console.log('Room created:', data);
-      const createdRoomId = data.roomId;
-      const creatorPlayerId = data.playerId;
-      
-      setRoomId(createdRoomId);
-      setRoomType(data.roomType);
-      
-      playerIdRef.current = creatorPlayerId;
-      setPlayerId(creatorPlayerId);
-      setPlayers(data.players || {});
-      setPlayerNames(data.playerNames || {});
-      setMyReadyState(false);
-      setOpponentReadyState(false);
-      setIsRoomReady(false);
-      setConnectionStatus('connected');
-      
-      console.log('Room creator assigned playerId:', creatorPlayerId);
-    };
-
-    const handleRoomJoined = (data) => {
-      console.log('Room joined event received:', data);
-      
-      if (!playerIdRef.current) {
-        const myId = data.playerId;
-        playerIdRef.current = myId;
-        setPlayerId(myId);
-      }
-      
-      setPlayers(data.players || {});
-      setConnectionStatus('connected');
-      
-      if (data.roomType) {
+      const handleRoomCreated = (data) => {
+        console.log('Room created:', data);
+        const createdRoomId = data.roomId;
+        const creatorPlayerId = data.playerId;
+        
+        setRoomId(createdRoomId);
         setRoomType(data.roomType);
-      }
-      
-      if (data.playerNames) {
-        setPlayerNames(data.playerNames);
-      }
-      
-      const myId = playerIdRef.current;
-      const myReady = data.readyStates?.[myId] || false;
-      
-      let oppReady = false;
-      Object.keys(data.players).forEach(pid => {
-        if (parseInt(pid) !== myId) {
-          oppReady = oppReady || (data.readyStates?.[pid] || false);
-        }
-      });
-      
-      setMyReadyState(myReady);
-      setOpponentReadyState(oppReady);
-      setIsRoomReady(data.readyStates && Object.values(data.readyStates).every(r => r));
-    };
+        
+        playerIdRef.current = creatorPlayerId;
+        setPlayerId(creatorPlayerId);
+        setPlayers(data.players || {});
+        setPlayerNames(data.playerNames || {});
+        setHostId(data.hostId || creatorPlayerId);
+        setMyReadyState(false);
+        setOpponentReadyState(false);
+        setIsRoomReady(false);
+        setConnectionStatus('connected');
+        
+        console.log('Room creator assigned playerId:', creatorPlayerId, 'Host:', data.hostId);
+      };
 
-      const handlePlayerJoined = (data) => {
-      setPlayers(data.players || {});
-      setPlayerNames(data.playerNames || {});
-      setConnectionStatus('connected');
-      const currentPlayerId = playerIdRef.current;
-      if (currentPlayerId && data.readyStates) {
-        const myReady = data.readyStates[currentPlayerId] || false;
-        setMyReadyState(myReady);
+      const handleRoomJoined = (data) => {
+        console.log('Room joined event:', data);
+        
+        if (!playerIdRef.current) {
+          const myId = data.playerId;
+          playerIdRef.current = myId;
+          setPlayerId(myId);
+        }
+        
+        setPlayers(data.players || {});
+        setConnectionStatus('connected');
+        setHostId(data.hostId);
+        
+        if (data.roomType) {
+          setRoomType(data.roomType);
+        }
+        
+        if (data.playerNames) {
+          setPlayerNames(data.playerNames);
+        }
+        
+        const myId = playerIdRef.current;
+        const myReady = data.readyStates?.[myId] || false;
+        
         let oppReady = false;
         Object.keys(data.players).forEach(pid => {
-          if (parseInt(pid) !== currentPlayerId) {
-            oppReady = oppReady || (data.readyStates[pid] || false);
+          if (parseInt(pid) !== myId) {
+            oppReady = oppReady || (data.readyStates?.[pid] || false);
           }
         });
+        
+        setMyReadyState(myReady);
         setOpponentReadyState(oppReady);
-      }
-    };
+        setIsRoomReady(data.readyStates && Object.values(data.readyStates).every(r => r));
+      };
+
+      const handlePlayerJoined = (data) => {
+        console.log('Player joined:', data);
+        setPlayers(data.players || {});
+        setPlayerNames(data.playerNames || {});
+        setHostId(data.hostId);
+        setConnectionStatus('connected');
+        
+        const currentPlayerId = playerIdRef.current;
+        if (currentPlayerId && data.readyStates) {
+          const myReady = data.readyStates[currentPlayerId] || false;
+          setMyReadyState(myReady);
+          let oppReady = false;
+          Object.keys(data.players).forEach(pid => {
+            if (parseInt(pid) !== currentPlayerId) {
+              oppReady = oppReady || (data.readyStates[pid] || false);
+            }
+          });
+          setOpponentReadyState(oppReady);
+        }
+      };
+
+      const handlePlayerLeft = (data) => {
+        console.log('Player left:', data);
+        setPlayers(data.players || {});
+        setPlayerNames(data.playerNames || {});
+        setHostId(data.hostId);
+        
+        const currentPlayerId = playerIdRef.current;
+        if (currentPlayerId && data.readyStates) {
+          const myReady = data.readyStates[currentPlayerId] || false;
+          setMyReadyState(myReady);
+          let oppReady = false;
+          Object.keys(data.players).forEach(pid => {
+            if (parseInt(pid) !== currentPlayerId) {
+              oppReady = oppReady || (data.readyStates[pid] || false);
+            }
+          });
+          setOpponentReadyState(oppReady);
+        }
+      };
+
       const handleSlotSelected = (data) => {
         setPlayers(data.players || {});
         setPlayerNames(data.playerNames || {});
@@ -245,13 +279,6 @@ export default function GameController() {
         setPhase('setup');
         setMsg('Deploy Your Forces');
         setScreen('onlineGame');
-      };
-      
-      const handleWatchGame = (data) => {
-        setScreen('onlineGame');
-        setPhase('playing');
-        setOmniscience(true);
-        setMsg('Observing Battle');
       };
 
       const handleOpponentDeploymentUpdate = (data) => {
@@ -321,6 +348,7 @@ export default function GameController() {
       WebSocketManager.on('createRoom', handleRoomCreated);
       WebSocketManager.on('roomJoined', handleRoomJoined);
       WebSocketManager.on('playerJoined', handlePlayerJoined);
+      WebSocketManager.on('playerLeft', handlePlayerLeft);
       WebSocketManager.on('slotSelected', handleSlotSelected);
       WebSocketManager.on('nameUpdated', handleNameUpdated);
       WebSocketManager.on('playerReady', handlePlayerReady);
@@ -330,15 +358,14 @@ export default function GameController() {
       WebSocketManager.on('bothPlayersReady', handleBothPlayersReady);
       WebSocketManager.on('move', handleMove);
       WebSocketManager.on('gameEnd', handleGameEnd);
-      WebSocketManager.on('watchGame', handleWatchGame);
 
-      if (screen === 'room' && roomId) {
+      if (screen === 'room' && roomId && selectedServerUrl) {
         const needsConnection = !WebSocketManager.ws || 
                               WebSocketManager.ws.readyState !== WebSocket.OPEN ||
                               WebSocketManager.currentRoomId !== roomId;
         
         if (needsConnection && !playerIdRef.current) {
-          console.log('Connecting to room:', roomId);
+          console.log('Establishing connection to room:', roomId);
           WebSocketManager.connect(roomId, null, selectedServerUrl);
         }
       }
@@ -349,6 +376,7 @@ export default function GameController() {
           WebSocketManager.off('createRoom');
           WebSocketManager.off('roomJoined');
           WebSocketManager.off('playerJoined');
+          WebSocketManager.off('playerLeft');
           WebSocketManager.off('slotSelected');
           WebSocketManager.off('nameUpdated');
           WebSocketManager.off('playerReady');
@@ -358,12 +386,11 @@ export default function GameController() {
           WebSocketManager.off('bothPlayersReady');
           WebSocketManager.off('move');
           WebSocketManager.off('gameEnd');
-          WebSocketManager.off('watchGame');
           WebSocketManager.disconnect();
         }
       };
     }
-  }, [screen, roomId, selectedServerUrl]);
+  }, [screen, roomId, selectedServerUrl, players, roomType]);
 
   // ============================================
   // CELL INTERACTION
@@ -409,12 +436,14 @@ export default function GameController() {
     setShowBattleReport(false);
     setRoomId('');
     setPlayerId(null);
-    setPlayers([null, null]);
+    playerIdRef.current = null;
+    setPlayers({});
     setIsRoomReady(false);
     setMyReadyState(false);
     setOpponentReadyState(false);
     setShowVictory(false);
     setVictoryData(null);
+    setHostId(null);
     WebSocketManager.disconnect();
   }, []);
 
@@ -598,7 +627,7 @@ export default function GameController() {
 
   const handlePlayClick = (r, c) => {
     const isObserver = setupPlayer === 3;
-    if (isObserver) return; // Observers can't play
+    if (isObserver) return;
     
     const modeHandler = mode === 'ai' ? GameModes.ai : (multiplayerMode === 'online' ? GameModes.online : GameModes.local);
     
@@ -810,20 +839,28 @@ export default function GameController() {
     setRoomId('');
     setPlayerId(null);
     playerIdRef.current = null;
+    setHostId(null);
     setScreen('room');
     WebSocketManager.createRoom(roomType, serverUrl);
   };
 
   const joinRoom = (id, serverUrl = null) => {
+    const url = serverUrl || WebSocketManager.getServerUrl();
+    
     setRoomId(id);
-    setSelectedServerUrl(serverUrl);
+    setSelectedServerUrl(url);
     setConnectionStatus('connecting');
     setPlayers({});
     setIsRoomReady(false);
     setMyReadyState(false);
     setOpponentReadyState(false);
     setPlayerNames({});
+    setPlayerId(null);
+    playerIdRef.current = null;
+    setHostId(null);
     setScreen('room');
+    
+    WebSocketManager.connect(id, null, url);
   };
 
   const toggleReady = () => {
@@ -864,7 +901,10 @@ export default function GameController() {
 
   if (screen === 'multiplayer') {
     return <MultiplayerLobby 
-      onBack={() => setScreen('home')} 
+      onBack={() => {
+        setScreen('home');
+        WebSocketManager.disconnect();
+      }} 
       onCreateRoom={createRoom}
       onJoinRoom={joinRoom}
       roomId={roomId}
@@ -881,12 +921,14 @@ export default function GameController() {
         setScreen('multiplayer'); 
         setRoomId(''); 
         setPlayerId(null);
+        playerIdRef.current = null;
         setPlayers({});
         setConnectionStatus('disconnected'); 
         setMyReadyState(false); 
         setOpponentReadyState(false); 
         setIsRoomReady(false);
         setPlayerNames({});
+        setHostId(null);
         WebSocketManager.disconnect(); 
       }}
       onStart={startOnlineGame}
@@ -901,6 +943,7 @@ export default function GameController() {
       onSelectSlot={selectSlot}
       playerNames={playerNames}
       onUpdateName={updatePlayerName}
+      hostId={hostId}
     />;
   }
 
