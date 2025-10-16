@@ -397,7 +397,7 @@ const dashboardHTML = `<!DOCTYPE html>
         </header>
 
         <div class="server-info">
-            <h2>📊 Server Information</h2>
+            <h2>Server Information</h2>
             <div class="info-grid">
                 <div class="info-item">
                     <span class="label">Status:</span>
@@ -420,7 +420,7 @@ const dashboardHTML = `<!DOCTYPE html>
 
         <div class="rooms-section">
             <div class="section-header">
-                <h2>🎮 Active Rooms</h2>
+                <h2>Active Rooms</h2>
                 <button class="refresh-btn" onclick="refreshRooms()">🔄 Refresh</button>
             </div>
             <div id="roomsList" class="rooms-list">
@@ -429,7 +429,7 @@ const dashboardHTML = `<!DOCTYPE html>
         </div>
 
         <div class="instructions">
-            <h2>ℹ️ How to Connect</h2>
+            <h2>ℹHow to Connect</h2>
             <div class="instruction-card">
                 <h3>For Players:</h3>
                 <p>Use the Salpakan game client to connect to this server:</p>
