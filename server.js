@@ -679,7 +679,6 @@ process.on('SIGINT', () => {
   });
 });
 
-// Log stats every 5 minutes
 setInterval(() => {
   const uptime = Math.floor((Date.now() - startTime) / 1000 / 60);
   console.log(`\n📊 Stats: ${rooms.size} rooms, ${wss.clients.size} connections, ${uptime}m uptime`);
